@@ -701,7 +701,7 @@ def parse_solution_to_html(solution_text):
     return '\n'.join(html_parts)
 
 def create_beautiful_pdf(solution_text):
-    """Create stunning PDF with WeasyPrint"""
+    """Create stunning PDF with WeasyPrint - WeasyPrint 60.x Compatible"""
     try:
         content_html = parse_solution_to_html(solution_text)
         
@@ -729,14 +729,9 @@ def create_beautiful_pdf(solution_text):
         
         pdf_buffer = BytesIO()
         
-        # Updated PDF generation code
+        # WeasyPrint 60.x simplified API - no extra parameters needed
         html = HTML(string=full_html)
-        html.write_pdf(
-            target=pdf_buffer,
-            presentational_hints=True,
-            optimize_images=True,
-            zoom=1
-        )
+        html.write_pdf(pdf_buffer)
         
         pdf_buffer.seek(0)
         return pdf_buffer
