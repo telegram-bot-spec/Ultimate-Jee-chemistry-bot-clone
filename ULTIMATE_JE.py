@@ -712,38 +712,12 @@ def create_beautiful_pdf(solution_text):
         )
         
         pdf_buffer = BytesIO()
-        def create_beautiful_pdf(solution_text):
-    """Create stunning PDF with WeasyPrint"""
-    try:
-        content_html = parse_solution_to_html(solution_text)
+pdf_buffer = BytesIO()
         
-        template = Template(HTML_TEMPLATE)
-        html_output = template.render(
-            content=content_html,
-            date=datetime.now().strftime('%B %d, %Y at %I:%M %p')
-        )
-        
-        pdf_buffer = BytesIO()
-        
-        # Fixed: Create HTML and CSS objects properly
         html_doc = HTML(string=html_output)
         css_doc = CSS(string=CSS_TEMPLATE)
         
-        # Write PDF with proper method call
         html_doc.write_pdf(pdf_buffer, stylesheets=[css_doc])
-        
-        pdf_buffer.seek(0)
-        
-        return pdf_buffer
-    except Exception as e:
-        logger.error(f"PDF generation error: {e}")
-        raise
-        pdf_buffer.seek(0)
-        
-        return pdf_buffer
-    except Exception as e:
-        logger.error(f"PDF generation error: {e}")
-        raise
 
 # ============================================================================
 # BOT HANDLERS
