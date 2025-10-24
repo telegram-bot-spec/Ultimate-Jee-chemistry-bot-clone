@@ -26,3 +26,10 @@ Thumbs.db
 
 # Logs
 *.log
+*.txt
+*.log
+chemistry_knowledge_cache.json
+temp_*
+.env
+__pycache__/
+*.pyc
