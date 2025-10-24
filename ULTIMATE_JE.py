@@ -729,15 +729,22 @@ def create_beautiful_pdf(solution_text):
         
         pdf_buffer = BytesIO()
         
-        # Create HTML object and write PDF directly
-        HTML(string=full_html).write_pdf(pdf_buffer)
+        # Updated PDF generation code
+        html = HTML(string=full_html)
+        html.write_pdf(
+            target=pdf_buffer,
+            presentational_hints=True,
+            optimize_images=True,
+            zoom=1
+        )
         
         pdf_buffer.seek(0)
-        
         return pdf_buffer
+        
     except Exception as e:
         logger.error(f"PDF generation error: {e}")
         raise
+
 
 # ============================================================================
 # BOT HANDLERS
