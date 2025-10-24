@@ -1,1 +1,1 @@
-web: python ULTIMATE_JEE.py
+web: python ULTIMATE_JE.py
