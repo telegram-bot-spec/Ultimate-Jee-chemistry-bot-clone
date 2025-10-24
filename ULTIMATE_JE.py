@@ -711,14 +711,26 @@ def create_beautiful_pdf(solution_text):
             date=datetime.now().strftime('%B %d, %Y at %I:%M %p')
         )
         
+        # Combine HTML and CSS into one document
+        full_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+            {CSS_TEMPLATE}
+            </style>
+        </head>
+        <body>
+        {html_output}
+        </body>
+        </html>
+        """
+        
         pdf_buffer = BytesIO()
         
-        # Fixed: Create HTML and CSS objects properly
-        html_doc = HTML(string=html_output)
-        css_doc = CSS(string=CSS_TEMPLATE)
-        
-        # Write PDF with proper method call
-        html_doc.write_pdf(pdf_buffer, stylesheets=[css_doc])
+        # Create HTML object and write PDF directly
+        HTML(string=full_html).write_pdf(pdf_buffer)
         
         pdf_buffer.seek(0)
         
