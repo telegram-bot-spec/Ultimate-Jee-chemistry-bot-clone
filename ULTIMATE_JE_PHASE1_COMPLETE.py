@@ -1,21 +1,21 @@
 """
-ULTIMATE CHEMISTRY BOT - PRODUCTION VERSION
-Complete Working Code with Beautiful PDF Generation
-98-99%+ Accuracy Target
-Triple-Pass Analysis + Complete Chemistry Logic Database
+ULTIMATE CHEMISTRY BOT - PHASE 1 COMPLETE & INTEGRATED
+All features working: Text queries, Feedback, Dark mode, Admin tools
 
-SECURITY: Uses environment variables for all sensitive data
+Author: @aryansmilezzz
+Admin ID: 6298922725
+Version: Phase 1 Final
 """
 
 import os
 import asyncio
 import nest_asyncio
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from io import BytesIO
 from PIL import Image, ImageEnhance
 from datetime import datetime
-from weasyprint import HTML, CSS
+from weasyprint import HTML
 from jinja2 import Template
 import re
 import base64
@@ -23,6 +23,51 @@ import httpx
 import aiohttp
 import json
 import logging
+import time
+from collections import defaultdict
+
+# Import Phase 1 modules
+from phase1_features import (
+    handle_text_query,
+    handle_detailed_request,
+    collect_feedback_comment,
+    get_user_preference,
+    set_user_preference,
+    check_rate_limit,
+    is_spam_message,
+    DARK_MODE_CSS
+)
+
+from phase1_admin import (
+    ADMIN_ID,
+    ADMIN_USERNAME,
+    track_new_user,
+    track_problem_solved,
+    track_text_query,
+    track_feedback,
+    detect_spam,
+    is_banned,
+    check_maintenance,
+    notify_admin,
+    notify_new_user,
+    notify_problem_solved,
+    notify_text_query,
+    notify_feedback,
+    notify_spam_detected,
+    notify_error,
+    admin_ban_command,
+    admin_unban_command,
+    admin_stats_command,
+    admin_maintenance_command,
+    admin_broadcast_command,
+    admin_users_command,
+    admin_warn_command,
+    admin_ignore_command,
+    admin_help_command,
+    all_users,
+    total_problems_solved,
+    bot_start_time
+)
 
 nest_asyncio.apply()
 
@@ -30,7 +75,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# CONFIGURATION - ENVIRONMENT VARIABLES
+# CONFIGURATION
 # ============================================================================
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -43,14 +88,12 @@ GEMINI_API_KEYS = [
     os.environ.get('GEMINI_KEY_5'),
 ]
 
-# Filter out None values in case not all keys are set
 GEMINI_API_KEYS = [key for key in GEMINI_API_KEYS if key]
 
-# Validate configuration
 if not BOT_TOKEN:
     raise ValueError("❌ BOT_TOKEN environment variable not set!")
 if not GEMINI_API_KEYS:
-    raise ValueError("❌ No GEMINI API keys found in environment variables!")
+    raise ValueError("❌ No GEMINI API keys found!")
 
 logger.info(f"✅ Loaded {len(GEMINI_API_KEYS)} Gemini API keys")
 
@@ -58,8 +101,12 @@ current_key_index = 0
 CHEMISTRY_CACHE_FILE = "/app/data/chemistry_knowledge_cache.json" if os.path.exists("/app/data") else "chemistry_knowledge_cache.json"
 chemistry_knowledge_base = {}
 
+# Donate QR (base64 embedded - you'll replace this with your actual QR)
+DONATE_QR_BASE64 = None  # Set to None, will use file if available
+DONATE_QR_PATH = "donate_qr.png"
+
 # ============================================================================
-# GITHUB CHEMISTRY REPOSITORIES
+# CHEMISTRY KNOWLEDGE SOURCES
 # ============================================================================
 
 CHEMISTRY_KNOWLEDGE_SOURCES = {
@@ -70,10 +117,6 @@ CHEMISTRY_KNOWLEDGE_SOURCES = {
     "named_reactions": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/named_reactions/named_reactions.json",
     "organic_molecules": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/miscellaneous/organic_molecules.json",
 }
-
-# ============================================================================
-# JEE ADVANCED LOGIC
-# ============================================================================
 
 JEE_ADVANCED_LOGIC = {
     "mechanism_decision_trees": {
@@ -116,17 +159,12 @@ def load_chemistry_cache():
 
 def save_chemistry_cache():
     try:
-        # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(CHEMISTRY_CACHE_FILE), exist_ok=True)
         with open(CHEMISTRY_CACHE_FILE, 'w') as f:
             json.dump(chemistry_knowledge_base, f, indent=2)
         logger.info(f"💾 Saved cache: {len(chemistry_knowledge_base)} sections")
     except Exception as e:
         logger.error(f"⚠️ Cache save error: {e}")
-
-# ============================================================================
-# DOWNLOAD KNOWLEDGE
-# ============================================================================
 
 async def download_chemistry_knowledge():
     global chemistry_knowledge_base
@@ -135,33 +173,27 @@ async def download_chemistry_knowledge():
         return chemistry_knowledge_base
 
     logger.info("🌐 Downloading chemistry knowledge from GitHub...")
-    logger.info("=" * 70)
-
     downloaded = {}
 
     try:
         async with aiohttp.ClientSession() as session:
             for name, url in CHEMISTRY_KNOWLEDGE_SOURCES.items():
                 try:
-                    logger.info(f"📥 Downloading {name}...")
                     async with session.get(url, timeout=30) as response:
                         if response.status == 200:
                             data = await response.json()
                             downloaded[name] = data
                             if isinstance(data, list):
-                                logger.info(f"   ✅ {name}: {len(data)} entries")
-                            else:
-                                logger.info(f"   ✅ {name}: loaded")
+                                logger.info(f"✅ {name}: {len(data)} entries")
                         else:
-                            logger.info(f"   ⚠️ {name}: HTTP {response.status}")
+                            logger.info(f"⚠️ {name}: HTTP {response.status}")
                 except Exception as e:
-                    logger.info(f"   ⚠️ {name}: {str(e)[:50]}")
+                    logger.info(f"⚠️ {name}: {str(e)[:50]}")
                 await asyncio.sleep(0.5)
 
         downloaded["jee_advanced_logic"] = JEE_ADVANCED_LOGIC
         chemistry_knowledge_base = downloaded
         save_chemistry_cache()
-        logger.info("=" * 70)
         logger.info(f"✅ Downloaded! Total: {len(chemistry_knowledge_base)} sections")
 
     except Exception as e:
@@ -171,7 +203,7 @@ async def download_chemistry_knowledge():
     return chemistry_knowledge_base
 
 # ============================================================================
-# BUILD PROMPT
+# PROMPT BUILDING
 # ============================================================================
 
 def build_enhanced_chemistry_prompt():
@@ -328,10 +360,10 @@ async def call_gemini(image_bytes, user_question=""):
             raise
 
 # ============================================================================
-# BEAUTIFUL PDF GENERATION WITH WEASYPRINT
+# PDF GENERATION
 # ============================================================================
 
-CSS_TEMPLATE = """
+LIGHT_MODE_CSS = """
 @page {
     size: A4;
     margin: 2cm;
@@ -539,28 +571,16 @@ HTML_TEMPLATE = """
 """
 
 def format_chemistry_html(text):
-    """Convert plain text to HTML with chemistry formatting"""
-    # Escape HTML first
     text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-    
-    # Subscripts (H2O -> H₂O)
     text = re.sub(r'_(\d+)', r'<sub>\1</sub>', text)
-    
-    # Superscripts (10^11 -> 10¹¹)
     text = re.sub(r'\^(\d+)', r'<sup>\1</sup>', text)
     text = re.sub(r'\^(\+|-)', r'<sup>\1</sup>', text)
-    
-    # Arrows
     text = text.replace('-&gt;', '→').replace('=&gt;', '⇒')
-    
-    # Bold and italic
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'__(.+?)__', r'<strong>\1</strong>', text)
-    
     return text
 
 def parse_solution_to_html(solution_text):
-    """Parse solution text into structured HTML"""
     lines = solution_text.split('\n')
     html_parts = []
     in_strategy = False
@@ -576,11 +596,9 @@ def parse_solution_to_html(solution_text):
                 in_list = False
             continue
         
-        # Skip fluff
         if line.startswith(('Answering as', 'Here is', 'BEGIN ANALYSIS')):
             continue
         
-        # Strategy sections
         if 'STRATEGY' in line.upper():
             if in_list:
                 html_parts.append('</ul>')
@@ -616,7 +634,6 @@ def parse_solution_to_html(solution_text):
                 strategy_content.append(f'<p>{format_chemistry_html(line)}</p>')
             continue
         
-        # Final answer
         if 'ULTIMATE ANSWER' in line or 'FINAL ANSWER' in line:
             if in_list:
                 html_parts.append('</ul>')
@@ -632,7 +649,6 @@ def parse_solution_to_html(solution_text):
                 )
             continue
         
-        # One-sentence reason
         if 'ONE-SENTENCE REASON' in line:
             if in_list:
                 html_parts.append('</ul>')
@@ -645,7 +661,6 @@ def parse_solution_to_html(solution_text):
             )
             continue
         
-        # Confidence
         if 'FINAL CONFIDENCE' in line or line.startswith('Confidence:'):
             if in_list:
                 html_parts.append('</ul>')
@@ -659,7 +674,6 @@ def parse_solution_to_html(solution_text):
                 )
             continue
         
-        # Section headers
         if line.isupper() or re.match(r'^[A-Z\s]+:', line):
             if in_list:
                 html_parts.append('</ul>')
@@ -667,7 +681,6 @@ def parse_solution_to_html(solution_text):
             html_parts.append(f'<h2 class="section-title">{format_chemistry_html(line)}</h2>')
             continue
         
-        # Steps
         if line.startswith('Step '):
             if in_list:
                 html_parts.append('</ul>')
@@ -679,7 +692,6 @@ def parse_solution_to_html(solution_text):
             )
             continue
         
-        # Bullets
         if line.startswith(('• ', '* ', '- ', '◦ ')):
             clean = line[2:].strip()
             if not in_list:
@@ -688,7 +700,6 @@ def parse_solution_to_html(solution_text):
             html_parts.append(f'<li>{format_chemistry_html(clean)}</li>')
             continue
         
-        # Regular paragraphs
         if len(line) > 10:
             if in_list:
                 html_parts.append('</ul>')
@@ -700,8 +711,14 @@ def parse_solution_to_html(solution_text):
     
     return '\n'.join(html_parts)
 
-def create_beautiful_pdf(solution_text):
-    """Create stunning PDF with WeasyPrint - WeasyPrint 60.x Compatible"""
+def get_pdf_css(mode='light'):
+    """Get CSS based on mode"""
+    if mode == 'dark':
+        return DARK_MODE_CSS
+    else:
+        return LIGHT_MODE_CSS
+
+def create_beautiful_pdf(solution_text, mode='light'):
     try:
         content_html = parse_solution_to_html(solution_text)
         
@@ -711,14 +728,15 @@ def create_beautiful_pdf(solution_text):
             date=datetime.now().strftime('%B %d, %Y at %I:%M %p')
         )
         
-        # Combine HTML and CSS into one document
+        css = get_pdf_css(mode)
+        
         full_html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
             <style>
-            {CSS_TEMPLATE}
+            {css}
             </style>
         </head>
         <body>
@@ -728,11 +746,8 @@ def create_beautiful_pdf(solution_text):
         """
         
         pdf_buffer = BytesIO()
-        
-        # WeasyPrint 60.x simplified API - no extra parameters needed
         html = HTML(string=full_html)
         html.write_pdf(pdf_buffer)
-        
         pdf_buffer.seek(0)
         return pdf_buffer
         
@@ -740,19 +755,180 @@ def create_beautiful_pdf(solution_text):
         logger.error(f"PDF generation error: {e}")
         raise
 
+# ============================================================================
+# FEEDBACK HANDLERS
+# ============================================================================
+
+def create_feedback_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton("⭐ 1", callback_data="rate_1"),
+            InlineKeyboardButton("⭐ 2", callback_data="rate_2"),
+            InlineKeyboardButton("⭐ 3", callback_data="rate_3"),
+            InlineKeyboardButton("⭐ 4", callback_data="rate_4"),
+            InlineKeyboardButton("⭐ 5", callback_data="rate_5"),
+        ],
+        [
+            InlineKeyboardButton("⭐ 6", callback_data="rate_6"),
+            InlineKeyboardButton("⭐ 7", callback_data="rate_7"),
+            InlineKeyboardButton("⭐ 8", callback_data="rate_8"),
+            InlineKeyboardButton("⭐ 9", callback_data="rate_9"),
+            InlineKeyboardButton("⭐ 10", callback_data="rate_10"),
+        ],
+        [
+            InlineKeyboardButton("💬 Add Comment", callback_data="add_comment"),
+            InlineKeyboardButton("❌ Skip", callback_data="skip_feedback"),
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+async def request_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = create_feedback_keyboard()
+    
+    await update.message.reply_text(
+        "⭐ *How was this solution?*\n\n"
+        "Rate 1-10 so I can improve! 😊\n"
+        "_Your feedback helps make me better!_",
+        reply_markup=keyboard,
+        parse_mode='Markdown'
+    )
+
+async def handle_rating_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    rating = query.data.replace("rate_", "")
+    user = query.from_user
+    username = user.username or "Unknown"
+    user_id = user.id
+    
+    context.user_data['rating'] = rating
+    context.user_data['awaiting_feedback_comment'] = True
+    
+    track_feedback(rating)
+    
+    await query.edit_message_text(
+        f"✅ *You rated: {rating}/10*\n\n"
+        f"Want to add a comment? (Optional)\n"
+        f"Just type your feedback, or press /skip\n\n"
+        f"_Thank you! 🙏_",
+        parse_mode='Markdown'
+    )
+    
+    # Notify admin
+    await notify_feedback(user_id, username, rating, None, context)
+
+async def handle_comment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    context.user_data['awaiting_feedback_comment'] = True
+    
+    await query.edit_message_text(
+        "💬 *Please type your feedback:*\n\n"
+        "Share your thoughts about the solution!\n"
+        "Or press /skip to finish.\n\n"
+        "_Your input helps me improve!_ 😊",
+        parse_mode='Markdown'
+    )
+
+async def handle_skip_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(
+        "👍 *Thanks anyway!*\n\n"
+        "Send me another problem anytime! 📸",
+        parse_mode='Markdown'
+    )
 
 # ============================================================================
-# BOT HANDLERS
+# PDF MODE HANDLERS
+# ============================================================================
+
+def create_mode_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton("☀️ Light Mode", callback_data="mode_light"),
+            InlineKeyboardButton("🌙 Dark Mode", callback_data="mode_dark"),
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+async def ask_pdf_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    if get_user_preference(user_id, 'asked_mode', False):
+        return get_user_preference(user_id, 'pdf_mode', 'light')
+    
+    keyboard = create_mode_keyboard()
+    
+    await update.message.reply_text(
+        "🎨 *Choose PDF Style:*\n\n"
+        "☀️ *Light Mode* - Classic white background\n"
+        "🌙 *Dark Mode* - Easy on eyes for night study\n\n"
+        "_You can change this anytime with /settings_",
+        reply_markup=keyboard,
+        parse_mode='Markdown'
+    )
+    
+    return None
+
+async def handle_mode_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    mode = query.data.replace("mode_", "")
+    
+    set_user_preference(user_id, 'pdf_mode', mode)
+    set_user_preference(user_id, 'asked_mode', True)
+    
+    emoji = "☀️" if mode == "light" else "🌙"
+    await query.edit_message_text(
+        f"{emoji} *PDF Mode Set: {mode.title()}*\n\n"
+        f"All PDFs will now use {mode} mode!\n"
+        f"_Change anytime with /settings_",
+        parse_mode='Markdown'
+    )
+
+# ============================================================================
+# BOT COMMAND HANDLERS
 # ============================================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    username = update.effective_user.username or "Unknown"
+    
+    # Check maintenance
+    if await check_maintenance(update, context):
+        return
+    
+    # Check ban
+    if is_banned(user_id):
+        await update.message.reply_text(
+            "⛔ You have been banned from using this bot.\n"
+            "Contact admin if you think this is a mistake."
+        )
+        return
+    
+    # Track new user
+    is_new = track_new_user(user_id, username)
+    if is_new:
+        await notify_new_user(user_id, username, context)
+    
     status = "✅ Loaded" if chemistry_knowledge_base else "⏳ Loading..."
     await update.message.reply_text(
         f"🔬 *ULTIMATE CHEMISTRY BOT*\n\n"
         f"Triple-Strategy | 98-99% Accuracy\n"
         f"📚 GitHub Knowledge: {status}\n\n"
         f"📸 Send chemistry problem photo\n"
+        f"💬 Ask text questions too!\n"
         f"⏱️ Analysis: 3-8 minutes\n\n"
+        f"*Commands:*\n"
+        f"/help - How to use\n"
+        f"/settings - PDF mode & more\n"
+        f"/donate - Support the bot ❤️\n\n"
         f"_MS Chouhan + Bruice + GitHub DB_",
         parse_mode='Markdown'
     )
@@ -760,69 +936,134 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📖 *HOW TO USE*\n\n"
-        "1️⃣ Send clear photo\n"
-        "2️⃣ Wait 3-8 minutes\n"
-        "3️⃣ Receive PDF solution\n\n"
+        "*For Problem Solving:*\n"
+        "1️⃣ Send clear photo 📸\n"
+        "2️⃣ Wait 3-8 minutes ⏱️\n"
+        "3️⃣ Receive PDF solution 📄\n\n"
+        "*For Quick Questions:*\n"
+        "💬 Just type your question!\n"
+        "Example: \"What is SN1?\"\n"
+        "Get instant 2-3 line answers!\n\n"
         "*Features:*\n"
         "• GitHub chemistry database\n"
         "• Triple-strategy analysis\n"
         "• JEE trap detection\n"
-        "• Beautiful PDF reports\n\n"
+        "• Beautiful PDF reports\n"
+        "• Dark mode support 🌙\n\n"
+        "*Commands:*\n"
+        "/settings - Change PDF style\n"
+        "/donate - Support development\n\n"
         "_Quality over speed!_",
         parse_mode='Markdown'
     )
 
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def about_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uptime = datetime.now() - bot_start_time
+    
+    await update.message.reply_text(
+        f"ℹ️ *ABOUT THIS BOT*\n\n"
+        f"🔬 *Ultimate Chemistry Bot*\n"
+        f"AI-powered JEE chemistry solver\n\n"
+        f"📊 *Stats:*\n"
+        f"• Users: {len(all_users)}\n"
+        f"• Problems solved: {total_problems_solved}\n"
+        f"• Uptime: {uptime.days}d {uptime.seconds//3600}h\n\n"
+        f"✨ *Features:*\n"
+        f"• Triple-strategy analysis\n"
+        f"• 98-99% accuracy target\n"
+        f"• Text queries supported\n"
+        f"• Dark mode PDFs\n"
+        f"• GitHub knowledge base\n\n"
+        f"👨‍💻 *Developer:* {ADMIN_USERNAME}\n"
+        f"📅 *Version:* Phase 1\n\n"
+        f"_Made with ❤️ for JEE aspirants_",
+        parse_mode='Markdown'
+    )
+
+async def donate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        status = await update.message.reply_text(
-            "🔬 *ANALYSIS STARTED*\n\n📸 Image received\n🌐 Loading knowledge...\n\n_Please wait..._",
-            parse_mode='Markdown'
-        )
-
-        photo = update.message.photo[-1]
-        file = await context.bot.get_file(photo.file_id)
-        img_bytes = await file.download_as_bytearray()
-        user_question = update.message.caption or ""
-
-        import time
-        start_time = time.time()
-
-        if not chemistry_knowledge_base:
-            await status.edit_text(
-                "🔬 *ANALYSIS STARTED*\n\n📥 Downloading knowledge base...\n⏱️ 30-60 seconds first time\n\n_Building logic..._",
+        # Try to send QR image file
+        if os.path.exists(DONATE_QR_PATH):
+            with open(DONATE_QR_PATH, 'rb') as qr_file:
+                await update.message.reply_photo(
+                    photo=qr_file,
+                    caption=(
+                        "💖 *Support the Bot!*\n\n"
+                        f"Scan the QR code to donate via UPI\n\n"
+                        f"Your support helps keep this bot:\n"
+                        f"• Free for everyone ✅\n"
+                        f"• Running 24/7 ⚡\n"
+                        f"• Getting better features 🚀\n\n"
+                        f"_Every contribution matters! 🙏_\n\n"
+                        f"Thank you for your support!\n"
+                        f"- {ADMIN_USERNAME}"
+                    ),
+                    parse_mode='Markdown'
+                )
+        elif DONATE_QR_BASE64:
+            # Try base64 if file not found
+            qr_bytes = base64.b64decode(DONATE_QR_BASE64)
+            await update.message.reply_photo(
+                photo=BytesIO(qr_bytes),
+                caption=(
+                    "💖 *Support the Bot!*\n\n"
+                    f"Scan the QR code to donate via UPI\n\n"
+                    f"Your support helps keep this bot:\n"
+                    f"• Free for everyone ✅\n"
+                    f"• Running 24/7 ⚡\n"
+                    f"• Getting better features 🚀\n\n"
+                    f"_Every contribution matters! 🙏_\n\n"
+                    f"Thank you for your support!\n"
+                    f"- {ADMIN_USERNAME}"
+                ),
                 parse_mode='Markdown'
             )
-            await download_chemistry_knowledge()
-
-        await status.edit_text(
-            "🔬 *ANALYSIS IN PROGRESS*\n\n✅ Knowledge loaded\n🧠 Running triple-strategy...\n⏱️ 2-5 min remaining\n\n_Analyzing..._",
-            parse_mode='Markdown'
-        )
-
-        solution = await call_gemini(bytes(img_bytes), user_question)
-        elapsed = int(time.time() - start_time)
-
-        await status.edit_text(f"✅ *COMPLETE*\n\n⏱️ Time: {elapsed}s\n📄 Generating PDF...", parse_mode='Markdown')
-
-        pdf = create_beautiful_pdf(solution)
-        filename = f"Chem_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-
-        await update.message.reply_document(
-            document=pdf,
-            filename=filename,
-            caption=f"✅ *Analysis complete!*\n⏱️ {elapsed}s\n🎯 Maximum accuracy\n📚 Knowledge-enhanced",
-            parse_mode='Markdown'
-        )
-
-        await status.delete()
-        logger.info(f"✅ Delivered in {elapsed}s")
-
+        else:
+            # Fallback message
+            await update.message.reply_text(
+                "💖 *Support the Bot!*\n\n"
+                "Thank you for wanting to support!\n"
+                f"Contact: {ADMIN_USERNAME}\n\n"
+                "_QR code coming soon!_",
+                parse_mode='Markdown'
+            )
     except Exception as e:
-        logger.error(f"Error: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error: {str(e)[:150]}\n\nRetry with clearer image.", parse_mode='Markdown')
+        logger.error(f"Donate command error: {e}")
+        await update.message.reply_text(
+            "💖 *Support the Bot!*\n\n"
+            "Thank you for your interest!\n"
+            f"Contact: {ADMIN_USERNAME}",
+            parse_mode='Markdown'
+        )
 
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📸 Send an *image* of your chemistry problem!", parse_mode='Markdown')
+async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    current_mode = get_user_preference(user_id, 'pdf_mode', 'light')
+    
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                f"{'✅' if current_mode == 'light' else '◻️'} Light Mode", 
+                callback_data="mode_light"
+            ),
+            InlineKeyboardButton(
+                f"{'✅' if current_mode == 'dark' else '◻️'} Dark Mode", 
+                callback_data="mode_dark"
+            ),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    emoji = "☀️" if current_mode == "light" else "🌙"
+    
+    await update.message.reply_text(
+        f"⚙️ *Settings*\n\n"
+        f"*PDF Mode:* {emoji} {current_mode.title()}\n"
+        f"*Response Style:* Concise (2-3 lines)\n\n"
+        f"_Tap to change PDF mode:_",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not chemistry_knowledge_base:
@@ -838,13 +1079,180 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stats += f"\n✅ Fully operational"
     await update.message.reply_text(stats, parse_mode='Markdown')
 
+async def skip_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /skip command"""
+    if context.user_data.get('awaiting_feedback_comment'):
+        context.user_data['awaiting_feedback_comment'] = False
+        await update.message.reply_text(
+            "👍 *Feedback skipped!*\n\nSend me another problem anytime! 📸",
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text(
+            "Nothing to skip right now!",
+            parse_mode='Markdown'
+        )
+
 # ============================================================================
-# MAIN
+# PHOTO HANDLER
+# ============================================================================
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    username = update.effective_user.username or "Unknown"
+    
+    # Check maintenance
+    if await check_maintenance(update, context):
+        return
+    
+    # Check ban
+    if is_banned(user_id):
+        await update.message.reply_text("⛔ You are banned from using this bot.")
+        return
+    
+    try:
+        # Ask for PDF mode on first use
+        pdf_mode = get_user_preference(user_id, 'pdf_mode')
+        if not pdf_mode or not get_user_preference(user_id, 'asked_mode', False):
+            result = await ask_pdf_mode(update, context)
+            if result is None:
+                return  # Waiting for user to choose mode
+            pdf_mode = result
+        
+        status = await update.message.reply_text(
+            "🔬 *ANALYSIS STARTED*\n\n📸 Image received\n🌐 Loading knowledge...\n\n_Please wait..._",
+            parse_mode='Markdown'
+        )
+
+        photo = update.message.photo[-1]
+        file = await context.bot.get_file(photo.file_id)
+        img_bytes = await file.download_as_bytearray()
+        user_question = update.message.caption or ""
+
+        start_time = time.time()
+
+        # Download knowledge if needed
+        if not chemistry_knowledge_base:
+            await status.edit_text(
+                "🔬 *ANALYSIS STARTED*\n\n📥 Downloading knowledge base...\n⏱️ 30-60 seconds first time\n\n_Building logic..._",
+                parse_mode='Markdown'
+            )
+            await download_chemistry_knowledge()
+
+        await status.edit_text(
+            "🔬 *ANALYSIS IN PROGRESS*\n\n✅ Knowledge loaded\n🧠 Running triple-strategy...\n⏱️ 2-5 min remaining\n\n_Analyzing..._",
+            parse_mode='Markdown'
+        )
+
+        # Call Gemini
+        solution = await call_gemini(bytes(img_bytes), user_question)
+        elapsed = int(time.time() - start_time)
+
+        await status.edit_text(
+            f"✅ *COMPLETE*\n\n⏱️ Time: {elapsed}s\n📄 Generating PDF...",
+            parse_mode='Markdown'
+        )
+
+        # Generate PDF with user's preferred mode
+        pdf_mode = get_user_preference(user_id, 'pdf_mode', 'light')
+        pdf = create_beautiful_pdf(solution, pdf_mode)
+        filename = f"Chem_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+
+        # Send PDF
+        await update.message.reply_document(
+            document=pdf,
+            filename=filename,
+            caption=f"✅ *Analysis complete!*\n⏱️ {elapsed}s\n🎯 Maximum accuracy\n📚 Knowledge-enhanced",
+            parse_mode='Markdown'
+        )
+
+        await status.delete()
+        
+        # Track problem solved
+        track_problem_solved(user_id)
+        
+        # Request feedback
+        await request_feedback(update, context)
+        
+        # Notify admin
+        await notify_problem_solved(user_id, username, elapsed, context, BytesIO(img_bytes))
+        
+        logger.info(f"✅ Delivered in {elapsed}s to {username}")
+
+    except Exception as e:
+        logger.error(f"Error in handle_photo: {e}", exc_info=True)
+        await notify_error(str(e), context)
+        await update.message.reply_text(
+            f"❌ Error: {str(e)[:150]}\n\nRetry with clearer image.",
+            parse_mode='Markdown'
+        )
+
+# ============================================================================
+# TEXT HANDLER
+# ============================================================================
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    username = update.effective_user.username or "Unknown"
+    text = update.message.text
+    
+    # Check maintenance
+    if await check_maintenance(update, context):
+        return
+    
+    # Check ban
+    if is_banned(user_id):
+        return
+    
+    # Check if awaiting feedback comment
+    if context.user_data.get('awaiting_feedback_comment'):
+        feedback_data = await collect_feedback_comment(text, update, context)
+        if feedback_data:
+            # Notify admin with comment
+            await notify_feedback(
+                feedback_data['user_id'],
+                feedback_data['username'],
+                feedback_data['rating'],
+                feedback_data['comment'],
+                context
+            )
+        return
+    
+    # Check if awaiting detailed explanation
+    handled = await handle_detailed_request(text, update, context)
+    if handled:
+        return
+    
+    # Handle text query
+    result = await handle_text_query(text, update, context)
+    
+    if result == "spam_detected":
+        # Detect spam
+        is_spam, spam_type, count = detect_spam(user_id, text)
+        if is_spam:
+            recent_msgs = [msg for ts, msg in __import__('phase1_admin').user_message_history[user_id][-10:]]
+            await notify_spam_detected(user_id, username, spam_type, count, recent_msgs, context)
+    
+    elif result == "answered":
+        # Track text query
+        track_text_query(user_id)
+        # Notification already sent in handle_text_query
+    
+    elif result == "rate_limited":
+        # Already handled in handle_text_query
+        pass
+    
+    elif result == "unknown":
+        # Unknown query - already handled
+        pass
+
+# ============================================================================
+# STARTUP ROUTINE
 # ============================================================================
 
 async def startup_routine():
     logger.info("=" * 70)
-    logger.info("🔬 ULTIMATE CHEMISTRY BOT - STARTUP")
+    logger.info("🔬 ULTIMATE CHEMISTRY BOT - PHASE 1 STARTUP")
     logger.info("=" * 70)
     logger.info("📂 Checking cache...")
 
@@ -857,23 +1265,54 @@ async def startup_routine():
     logger.info("=" * 70)
     logger.info(f"✅ Sections: {len(chemistry_knowledge_base)}")
     logger.info(f"✅ API Keys: {len(GEMINI_API_KEYS)}")
+    logger.info(f"✅ Admin ID: {ADMIN_ID}")
+    logger.info(f"✅ Admin Username: {ADMIN_USERNAME}")
     logger.info(f"✅ Model: Gemini 2.0 Flash Exp")
-    logger.info(f"✅ Temperature: 0.05")
     logger.info("=" * 70)
+
+# ============================================================================
+# MAIN
+# ============================================================================
 
 def main():
     print("=" * 70)
-    print("🔬 ULTIMATE CHEMISTRY BOT - PRODUCTION VERSION")
-    print("   GitHub Integration | 98-99% Accuracy | Beautiful PDFs")
+    print("🔬 ULTIMATE CHEMISTRY BOT - PHASE 1")
+    print("   Text Queries | Feedback | Dark Mode | Admin Tools")
     print("=" * 70)
 
     app = Application.builder().token(BOT_TOKEN).build()
+    
+    # Command handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("about", about_cmd))
+    app.add_handler(CommandHandler("donate", donate_cmd))
+    app.add_handler(CommandHandler("settings", settings_command))
     app.add_handler(CommandHandler("stats", stats_cmd))
+    app.add_handler(CommandHandler("skip", skip_cmd))
+    
+    # Admin commands
+    app.add_handler(CommandHandler("admin_ban", admin_ban_command))
+    app.add_handler(CommandHandler("admin_unban", admin_unban_command))
+    app.add_handler(CommandHandler("admin_stats", admin_stats_command))
+    app.add_handler(CommandHandler("admin_maintenance", admin_maintenance_command))
+    app.add_handler(CommandHandler("admin_broadcast", admin_broadcast_command))
+    app.add_handler(CommandHandler("admin_users", admin_users_command))
+    app.add_handler(CommandHandler("admin_warn", admin_warn_command))
+    app.add_handler(CommandHandler("admin_ignore", admin_ignore_command))
+    app.add_handler(CommandHandler("admin_help", admin_help_command))
+    
+    # Callback query handlers
+    app.add_handler(CallbackQueryHandler(handle_rating_callback, pattern="^rate_"))
+    app.add_handler(CallbackQueryHandler(handle_comment_callback, pattern="^add_comment$"))
+    app.add_handler(CallbackQueryHandler(handle_skip_callback, pattern="^skip_feedback$"))
+    app.add_handler(CallbackQueryHandler(handle_mode_callback, pattern="^mode_"))
+    
+    # Message handlers
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
+    # Run startup
     loop = asyncio.get_event_loop()
     loop.run_until_complete(startup_routine())
 
