@@ -1,17 +1,17 @@
 """
-PHASE 2 FEATURES MODULE
-Hints System, Flashcard Generator, PDF Themes
+PHASE 2 FEATURES MODULE - ENHANCED
+Dynamic Flashcards from GitHub + PDF Generation, Hints, Themes
 
 Author: @aryansmilezzz
 Admin ID: 6298922725
-Phase: 2
+Phase: 2 - Enhanced
 """
 
 import random
 import time
 from datetime import datetime
 from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from weasyprint import HTML
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 import logging
@@ -19,7 +19,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# HINTS SYSTEM (5 Progressive Levels)
+# HINTS SYSTEM (Keep existing - Progressive 5 levels)
 # ============================================================================
 
 HINT_LEVELS = {
@@ -30,7 +30,6 @@ HINT_LEVELS = {
     5: "🔍 Hint 5: Review stereochemistry and orbital overlap"
 }
 
-# Context-aware hints for different topics
 TOPIC_HINTS = {
     "SN1": [
         "🔍 Hint 1: What type of substrate? (1°, 2°, 3°)",
@@ -69,30 +68,21 @@ TOPIC_HINTS = {
     ]
 }
 
-# Store user hint progress
-user_hint_progress = {}  # {user_id: {"topic": "SN1", "level": 3, "context": "..."}}
+user_hint_progress = {}
 
 def get_next_hint(user_id, topic=None, context=None):
-    """
-    Get next progressive hint for user
-    Returns: (hint_text, level, can_continue)
-    """
     if user_id not in user_hint_progress:
         user_hint_progress[user_id] = {"topic": topic, "level": 0, "context": context}
     
     progress = user_hint_progress[user_id]
-    
-    # Update context if provided
     if topic:
         progress["topic"] = topic
     if context:
         progress["context"] = context
     
-    # Increment level
     progress["level"] += 1
     current_level = progress["level"]
     
-    # Get hint based on topic or generic
     if progress["topic"] and progress["topic"].upper() in TOPIC_HINTS:
         hints = TOPIC_HINTS[progress["topic"].upper()]
         if current_level <= len(hints):
@@ -101,7 +91,6 @@ def get_next_hint(user_id, topic=None, context=None):
             hint = "💡 All hints given! Try solving now."
             current_level = len(hints)
     else:
-        # Generic hints
         if current_level in HINT_LEVELS:
             hint = HINT_LEVELS[current_level]
         else:
@@ -109,16 +98,13 @@ def get_next_hint(user_id, topic=None, context=None):
             current_level = 5
     
     can_continue = current_level < 5
-    
     return hint, current_level, can_continue
 
 def reset_hints(user_id):
-    """Reset hint progress for user"""
     if user_id in user_hint_progress:
         del user_hint_progress[user_id]
 
 def create_hint_keyboard(can_continue):
-    """Create keyboard for hint system"""
     if can_continue:
         keyboard = [
             [
@@ -133,169 +119,335 @@ def create_hint_keyboard(can_continue):
     return InlineKeyboardMarkup(keyboard)
 
 # ============================================================================
-# FLASHCARD GENERATOR (AI-Designed, Colorful)
+# 🔥 DYNAMIC FLASHCARD SYSTEM - PDF GENERATION 🔥
 # ============================================================================
 
-FLASHCARD_TEMPLATES = {
-    "neon": {
-        "bg_colors": [(255, 0, 128), (0, 255, 255), (255, 255, 0)],
-        "text_color": (255, 255, 255),
-        "border_color": (255, 0, 255),
-        "style": "bold"
-    },
-    "pastel": {
-        "bg_colors": [(255, 182, 193), (173, 216, 230), (255, 218, 185)],
-        "text_color": (50, 50, 50),
-        "border_color": (200, 150, 200),
-        "style": "normal"
-    },
-    "dark": {
-        "bg_colors": [(30, 30, 30), (50, 50, 80), (60, 40, 60)],
-        "text_color": (240, 240, 240),
-        "border_color": (100, 200, 255),
-        "style": "bold"
-    },
-    "handwritten": {
-        "bg_colors": [(255, 250, 240), (240, 255, 240), (255, 240, 245)],
-        "text_color": (40, 40, 40),
-        "border_color": (100, 100, 100),
-        "style": "handwritten"
+def get_flashcards_from_knowledge(topic, chemistry_knowledge_base):
+    """
+    Get flashcards from GitHub knowledge base
+    Falls back to local data if GitHub source not available
+    """
+    topic_upper = topic.upper()
+    
+    # Try to get from knowledge base (GitHub)
+    if "flashcards" in chemistry_knowledge_base:
+        flashcards_data = chemistry_knowledge_base["flashcards"]
+        
+        # Match topic
+        for key in flashcards_data.keys():
+            if topic_upper in key.upper() or key.upper() in topic_upper:
+                topic_cards = flashcards_data[key]
+                
+                # Flatten all categories
+                all_cards = []
+                if isinstance(topic_cards, dict):
+                    for category, cards in topic_cards.items():
+                        if isinstance(cards, list):
+                            all_cards.extend(cards)
+                
+                if all_cards:
+                    logger.info(f"✅ Loaded {len(all_cards)} flashcards for {topic} from knowledge base")
+                    return all_cards
+    
+    # Fallback: return empty (will use fallback data in main file)
+    logger.info(f"⚠️ No flashcards found for {topic}, using fallback")
+    return []
+
+def generate_flashcard_pdf(topic, cards, mode='light'):
+    """
+    Generate beautiful PDF with all flashcards for a topic
+    Each card shows FRONT and BACK on same page
+    """
+    
+    # CSS for flashcard PDF
+    css = """
+    @page {
+        size: A4;
+        margin: 1.5cm;
     }
-}
-
-def generate_flashcard(front_text, back_text, template="pastel"):
+    
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    body {
+        font-family: 'Helvetica', 'Arial', sans-serif;
+        font-size: 11pt;
+        line-height: 1.6;
+        color: #1a1a1a;
+        background: #ffffff;
+    }
+    
+    .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+    
+    .header h1 {
+        font-size: 26pt;
+        font-weight: bold;
+        margin-bottom: 8px;
+    }
+    
+    .header .subtitle {
+        font-size: 12pt;
+        opacity: 0.95;
+    }
+    
+    .card-container {
+        page-break-inside: avoid;
+        margin-bottom: 30px;
+        border: 2px solid #667eea;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .card-number {
+        background: #667eea;
+        color: white;
+        padding: 8px 15px;
+        font-weight: bold;
+        font-size: 10pt;
+    }
+    
+    .card-side {
+        padding: 20px;
+        min-height: 120px;
+    }
+    
+    .card-front {
+        background: #f8f9ff;
+        border-bottom: 2px dashed #667eea;
+    }
+    
+    .card-back {
+        background: #ffffff;
+    }
+    
+    .card-label {
+        font-size: 9pt;
+        font-weight: bold;
+        color: #667eea;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 10px;
+    }
+    
+    .card-content {
+        font-size: 11pt;
+        line-height: 1.6;
+        color: #2c3e50;
+    }
+    
+    .card-content strong {
+        color: #667eea;
+        font-weight: bold;
+    }
+    
+    .footer {
+        margin-top: 40px;
+        padding-top: 15px;
+        border-top: 2px solid #e0e0e0;
+        text-align: center;
+        font-size: 9pt;
+        color: #666;
+    }
+    
+    .category-header {
+        background: #764ba2;
+        color: white;
+        padding: 15px;
+        margin: 30px 0 20px 0;
+        border-radius: 8px;
+        font-size: 14pt;
+        font-weight: bold;
+    }
     """
-    Generate beautiful flashcard image
-    Returns: (front_image_bytes, back_image_bytes)
+    
+    # Dark mode CSS
+    if mode == 'dark':
+        css = """
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #e8e8e8;
+            background: #1a1a1a;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4a9eff 0%, #00d9ff 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 26pt;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .header .subtitle {
+            font-size: 12pt;
+            opacity: 0.95;
+        }
+        
+        .card-container {
+            page-break-inside: avoid;
+            margin-bottom: 30px;
+            border: 2px solid #4a9eff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .card-number {
+            background: #4a9eff;
+            color: white;
+            padding: 8px 15px;
+            font-weight: bold;
+            font-size: 10pt;
+        }
+        
+        .card-side {
+            padding: 20px;
+            min-height: 120px;
+        }
+        
+        .card-front {
+            background: #2a2a2a;
+            border-bottom: 2px dashed #4a9eff;
+        }
+        
+        .card-back {
+            background: #1e1e1e;
+        }
+        
+        .card-label {
+            font-size: 9pt;
+            font-weight: bold;
+            color: #4a9eff;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        
+        .card-content {
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #e8e8e8;
+        }
+        
+        .card-content strong {
+            color: #00d9ff;
+            font-weight: bold;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 15px;
+            border-top: 2px solid #3a3a3a;
+            text-align: center;
+            font-size: 9pt;
+            color: #888;
+        }
+        
+        .category-header {
+            background: #00d9ff;
+            color: #1a1a1a;
+            padding: 15px;
+            margin: 30px 0 20px 0;
+            border-radius: 8px;
+            font-size: 14pt;
+            font-weight: bold;
+        }
+        """
+    
+    # Build HTML content
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Flashcards: {topic}</title>
+        <style>{css}</style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🃏 {topic.upper()} FLASHCARDS</h1>
+            <div class="subtitle">Study Guide | {len(cards)} Cards</div>
+            <div class="subtitle" style="margin-top: 10px;">Generated on {datetime.now().strftime('%B %d, %Y')}</div>
+        </div>
     """
-    # Card dimensions
-    width, height = 800, 500
     
-    # Get template
-    theme = FLASHCARD_TEMPLATES.get(template, FLASHCARD_TEMPLATES["pastel"])
+    # Add cards
+    for i, card in enumerate(cards, 1):
+        front = card.get('front', 'No question')
+        back = card.get('back', 'No answer')
+        
+        # Format text (preserve line breaks, bold)
+        front = front.replace('\n', '<br>')
+        back = back.replace('\n', '<br>')
+        
+        html_content += f"""
+        <div class="card-container">
+            <div class="card-number">Card #{i}</div>
+            
+            <div class="card-side card-front">
+                <div class="card-label">📝 Question</div>
+                <div class="card-content">{front}</div>
+            </div>
+            
+            <div class="card-side card-back">
+                <div class="card-label">✅ Answer</div>
+                <div class="card-content">{back}</div>
+            </div>
+        </div>
+        """
     
-    # Generate front card
-    front_img = create_card_side(front_text, "QUESTION", width, height, theme)
-    front_bytes = BytesIO()
-    front_img.save(front_bytes, format='PNG')
-    front_bytes.seek(0)
+    # Footer
+    html_content += f"""
+        <div class="footer">
+            <p>Ultimate Chemistry Bot | Phase 2 Enhanced</p>
+            <p>🃏 {len(cards)} flashcards for mastering {topic}</p>
+        </div>
+    </body>
+    </html>
+    """
     
-    # Generate back card
-    back_img = create_card_side(back_text, "ANSWER", width, height, theme)
-    back_bytes = BytesIO()
-    back_img.save(back_bytes, format='PNG')
-    back_bytes.seek(0)
-    
-    return front_bytes, back_bytes
-
-def create_card_side(text, label, width, height, theme):
-    """Create one side of flashcard"""
-    # Create image
-    bg_color = random.choice(theme["bg_colors"])
-    img = Image.new('RGB', (width, height), bg_color)
-    draw = ImageDraw.Draw(img)
-    
-    # Add gradient effect (simple)
-    for i in range(height):
-        alpha = int(30 * (i / height))
-        overlay = Image.new('RGB', (width, 1), (0, 0, 0))
-        img.paste(overlay, (0, i), mask=None)
-    
-    # Border
-    border_width = 10
-    draw.rectangle(
-        [(border_width, border_width), (width - border_width, height - border_width)],
-        outline=theme["border_color"],
-        width=border_width
-    )
-    
-    # Try to load custom font, fallback to default
+    # Generate PDF
     try:
-        title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 40)
-        text_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
-    except:
-        title_font = ImageFont.load_default()
-        text_font = ImageFont.load_default()
-    
-    # Draw label (QUESTION/ANSWER)
-    label_bbox = draw.textbbox((0, 0), label, font=title_font)
-    label_width = label_bbox[2] - label_bbox[0]
-    label_height = label_bbox[3] - label_bbox[1]
-    label_x = (width - label_width) // 2
-    label_y = 50
-    
-    # Label background
-    draw.rectangle(
-        [(label_x - 20, label_y - 10), (label_x + label_width + 20, label_y + label_height + 10)],
-        fill=theme["border_color"]
-    )
-    draw.text((label_x, label_y), label, fill=(255, 255, 255), font=title_font)
-    
-    # Draw main text (wrapped)
-    wrapped_text = wrap_text(text, text_font, width - 100)
-    text_y = 150
-    
-    for line in wrapped_text:
-        bbox = draw.textbbox((0, 0), line, font=text_font)
-        line_width = bbox[2] - bbox[0]
-        line_x = (width - line_width) // 2
-        draw.text((line_x, text_y), line, fill=theme["text_color"], font=text_font)
-        text_y += bbox[3] - bbox[1] + 15
-    
-    # Add decorative elements
-    if theme["style"] == "handwritten":
-        # Add slight rotation/wobble effect
-        img = img.rotate(random.uniform(-1, 1), expand=False)
-    
-    return img
-
-def wrap_text(text, font, max_width):
-    """Wrap text to fit within max_width"""
-    lines = []
-    words = text.split()
-    current_line = []
-    
-    for word in words:
-        test_line = ' '.join(current_line + [word])
-        bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox((0, 0), test_line, font=font)
-        if bbox[2] - bbox[0] <= max_width:
-            current_line.append(word)
-        else:
-            if current_line:
-                lines.append(' '.join(current_line))
-            current_line = [word]
-    
-    if current_line:
-        lines.append(' '.join(current_line))
-    
-    return lines
-
-# Sample flashcard content
-SAMPLE_FLASHCARDS = {
-    "SN1": [
-        {
-            "front": "What is the rate law for SN1 reaction?",
-            "back": "Rate = k[RX]\nUnimolecular - only substrate concentration matters!"
-        },
-        {
-            "front": "SN1 carbocation stability order?",
-            "back": "3° > 2° > 1° > methyl\nMore substituted = more stable (hyperconjugation)"
-        }
-    ],
-    "NGP": [
-        {
-            "front": "NGP π-participation rate boost?",
-            "back": "10⁶ to 10¹⁴ times faster!\nC=C, benzene, C≡C within 2-3 atoms"
-        },
-        {
-            "front": "NGP n-participation rate boost?",
-            "back": "10³ to 10¹¹ times faster!\nLone pairs from O, N, S atoms"
-        }
-    ]
-}
+        pdf_buffer = BytesIO()
+        HTML(string=html_content).write_pdf(pdf_buffer)
+        pdf_buffer.seek(0)
+        return pdf_buffer
+    except Exception as e:
+        logger.error(f"PDF generation error: {e}")
+        raise
 
 # ============================================================================
-# PDF THEMES (Neon, Minimal, Notebook)
+# PDF THEMES (Keep existing)
 # ============================================================================
 
 THEME_NEON_CSS = """
@@ -458,7 +610,6 @@ strong { color: #ff6347; }
 """
 
 def get_theme_css(theme_name):
-    """Get CSS for a specific theme"""
     themes = {
         "neon": THEME_NEON_CSS,
         "minimal": THEME_MINIMAL_CSS,
@@ -471,10 +622,7 @@ def get_theme_css(theme_name):
 # ============================================================================
 
 async def hint_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /hint command"""
     user_id = update.effective_user.id
-    
-    # Get context from user's last problem (if available)
     last_problem = context.user_data.get('last_problem_topic')
     
     hint, level, can_continue = get_next_hint(user_id, topic=last_problem)
@@ -489,8 +637,7 @@ async def hint_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def flashcard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /flashcard command"""
-    # Show flashcard topics
+    """Show flashcard topic selection"""
     keyboard = [
         [
             InlineKeyboardButton("🎯 SN1", callback_data="flashcard_SN1"),
@@ -498,24 +645,31 @@ async def flashcard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ],
         [
             InlineKeyboardButton("⚡ NGP", callback_data="flashcard_NGP"),
-            InlineKeyboardButton("🔄 E1/E2", callback_data="flashcard_E1")
+            InlineKeyboardButton("🔄 E1", callback_data="flashcard_E1")
+        ],
+        [
+            InlineKeyboardButton("🔄 E2", callback_data="flashcard_E2"),
+            InlineKeyboardButton("⚛️ Carbocation", callback_data="flashcard_Carbocation")
+        ],
+        [
+            InlineKeyboardButton("🧬 Stereochemistry", callback_data="flashcard_Stereochemistry")
         ]
     ]
     
     await update.message.reply_text(
         "🃏 *FLASHCARD GENERATOR*\n\n"
-        "Select a topic to generate beautiful flashcards!\n\n"
+        "Select a topic to get comprehensive flashcards!\n\n"
         "*Features:*\n"
-        "• AI-designed colorful cards\n"
-        "• Handwritten-style available\n"
-        "• Question on front, answer on back\n\n"
+        "• All cards in beautiful PDF\n"
+        "• Front: Question | Back: Answer\n"
+        "• Sourced from GitHub database\n"
+        "• 50-100+ cards per topic\n\n"
         "_Choose a topic:_",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
 
 async def theme_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /theme command"""
     keyboard = [
         [
             InlineKeyboardButton("🌈 Neon", callback_data="theme_neon"),
@@ -548,7 +702,6 @@ async def theme_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================================
 
 async def handle_hint_next(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle next hint button"""
     query = update.callback_query
     await query.answer("💡 Loading next hint...")
     
@@ -565,7 +718,6 @@ async def handle_hint_next(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_hint_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle stop hints button"""
     query = update.callback_query
     await query.answer("Hints stopped!")
     
@@ -580,7 +732,6 @@ async def handle_hint_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_hint_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle reset hints button"""
     query = update.callback_query
     await query.answer("Hints reset!")
     
@@ -594,42 +745,91 @@ async def handle_hint_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_flashcard_topic(update: Update, context: ContextTypes.DEFAULT_TYPE, topic):
-    """Generate and send flashcard for topic"""
+    """Generate and send flashcard PDF for topic"""
     query = update.callback_query
-    await query.answer("🃏 Generating flashcard...")
+    await query.answer("🃏 Generating flashcard PDF...")
     
-    # Get sample flashcard
-    cards = SAMPLE_FLASHCARDS.get(topic, SAMPLE_FLASHCARDS["SN1"])
-    card = random.choice(cards)
-    
-    # Generate images
-    front_bytes, back_bytes = generate_flashcard(
-        card["front"], 
-        card["back"], 
-        template="pastel"
-    )
-    
-    # Send front
-    await query.message.reply_photo(
-        photo=front_bytes,
-        caption=f"🃏 *Flashcard: {topic}*\n\n📝 QUESTION (Front)",
+    await query.edit_message_text(
+        f"🃏 *Generating {topic} Flashcards...*\n\n"
+        f"📚 Compiling from knowledge base\n"
+        f"📄 Creating PDF...\n\n"
+        f"_This may take 10-20 seconds_",
         parse_mode='Markdown'
     )
     
-    # Send back
-    await query.message.reply_photo(
-        photo=back_bytes,
-        caption=f"✅ ANSWER (Back)\n\n_Want more? Use /flashcard again!_",
-        parse_mode='Markdown'
-    )
+    try:
+        # Get flashcards from knowledge base
+        from ULTIMATE_JE import chemistry_knowledge_base
+        cards = get_flashcards_from_knowledge(topic, chemistry_knowledge_base)
+        
+        # If no cards from GitHub, use fallback
+        if not cards:
+            logger.info(f"Using fallback flashcards for {topic}")
+            # Import fallback from main file
+            from ULTIMATE_JE import FALLBACK_FLASHCARDS
+            topic_data = FALLBACK_FLASHCARDS.get(topic, {})
+            
+            # Flatten all categories
+            cards = []
+            for category, category_cards in topic_data.items():
+                if isinstance(category_cards, list):
+                    cards.extend(category_cards)
+        
+        if not cards:
+            await query.edit_message_text(
+                f"❌ *No flashcards found for {topic}*\n\n"
+                f"Try another topic!",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Get user preference for PDF mode
+        user_id = query.from_user.id
+        from phase1_features import get_user_preference
+        pdf_mode = get_user_preference(user_id, 'pdf_mode', 'light')
+        
+        # Generate PDF
+        pdf_buffer = generate_flashcard_pdf(topic, cards, mode=pdf_mode)
+        
+        # Send PDF
+        filename = f"Flashcards_{topic}_{datetime.now().strftime('%Y%m%d')}.pdf"
+        
+        await query.message.reply_document(
+            document=pdf_buffer,
+            filename=filename,
+            caption=(
+                f"🃏 *{topic} Flashcards*\n\n"
+                f"📚 {len(cards)} cards generated\n"
+                f"✅ Ready to study!\n\n"
+                f"_Each card has question + answer on same page_"
+            ),
+            parse_mode='Markdown'
+        )
+        
+        await query.edit_message_text(
+            f"✅ *Flashcards Sent!*\n\n"
+            f"📄 {len(cards)} cards for {topic}\n"
+            f"Check the PDF above!\n\n"
+            f"_Want more? Use /flashcard again_",
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Flashcard generation error: {e}", exc_info=True)
+        await query.edit_message_text(
+            f"❌ *Error generating flashcards*\n\n"
+            f"{str(e)[:100]}\n\n"
+            f"Try another topic or contact admin.",
+            parse_mode='Markdown'
+        )
 
 async def handle_theme_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, theme):
-    """Handle theme selection"""
     query = update.callback_query
     await query.answer(f"✅ Theme set to {theme}!")
     
     user_id = query.from_user.id
-    context.user_data['pdf_theme'] = theme
+    from phase1_features import set_user_preference
+    set_user_preference(user_id, 'pdf_theme', theme)
     
     emoji_map = {
         "neon": "🌈",
