@@ -8,4 +8,4 @@ cmds = ["pip install --upgrade pip", "pip install -r requirements.txt"]
 cmds = []
 
 [start]
-cmd = "python ULTIMATE_JE.py"
+cmd = "python ULTIMATE_JE_PHASE1_COMPLETE.py"
