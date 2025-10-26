@@ -1,10 +1,10 @@
 """
-ULTIMATE_PHASE2.py - WITH CRAZY GITHUB SOURCES
-Massive knowledge base integration
+ULTIMATE_JE_FINAL.py - COMPLETE PHASE 1 + PHASE 2 INTEGRATION
+Everything from both files merged perfectly!
 
 Author: @aryansmilezzz
 Admin ID: 6298922725
-Version: Phase 2 - ENHANCED
+Version: FINAL - Complete Integration
 """
 
 import os
@@ -25,7 +25,7 @@ import json
 import logging
 import time
 
-# Phase imports (same as before)
+# Phase 1 imports
 from phase1_features import (
     handle_text_query, handle_detailed_request, collect_feedback_comment,
     get_user_preference, set_user_preference, DARK_MODE_CSS,
@@ -44,6 +44,7 @@ from phase1_admin import (
     bot_start_time, user_message_history
 )
 
+# Phase 2 imports
 from phase2_visualizer import (
     visualize_molecule_command,
     visualize_concept_map_command
@@ -106,21 +107,24 @@ current_key_index = 0
 CHEMISTRY_CACHE_FILE = "/app/data/chemistry_cache.json" if os.path.exists("/app/data") else "chemistry_cache.json"
 chemistry_knowledge_base = {}
 
+# Donate QR (add your base64 from file 3 here)
+DONATE_QR_BASE64 = ""  # Paste your base64 encoded QR code here from file (3)
+DONATE_QR_PATH = "donate_qr.png"
+
 # ============================================================================
-# 🔥 CRAZY GITHUB KNOWLEDGE SOURCES 🔥
+# 🔥 COMPLETE GITHUB KNOWLEDGE SOURCES (MERGED FROM BOTH FILES) 🔥
 # ============================================================================
 
 CHEMISTRY_SOURCES = {
-    # ========== EXISTING (Keep) ==========
+    # ========== FROM FILE (3) - BASIC SOURCES ==========
     "functional_groups": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/functional_groups/functional_groups.json",
     "common_r_groups": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/common_R_groups/common_R_groups.json",
     "amino_acids": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/amino_acids/amino_acids.json",
     "common_solvents": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/common_solvents/common_solvents.json",
     "named_reactions": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/named_reactions/named_reactions.json",
+    "organic_molecules": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/miscellaneous/organic_molecules.json",  # FROM (3)
     
-    # ========== NEW CRAZY ADDITIONS 🚀 ==========
-    
-    # More from Global-Chem (100+ datasets!)
+    # ========== FROM FILE (6) - EXPANDED SOURCES ==========
     "common_warheads": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/common_warheads/common_warheads.json",
     "common_organic_solvents": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/common_organic_solvents/common_organic_solvents.json",
     "vitamins": "https://raw.githubusercontent.com/Sulstice/global-chem/master/global_chem/vitamins/vitamins.json",
@@ -135,7 +139,7 @@ CHEMISTRY_SOURCES = {
     "reaction_smarts": "https://raw.githubusercontent.com/molecularsets/moses/master/data/dataset_v1.csv",
     "organic_reactions": "https://raw.githubusercontent.com/OpenChemistry/avogadrolibs/master/avogadro/qtplugins/templatetool/reactions.json",
     
-    # Flashcard Data Sources (will create custom repo)
+    # Flashcard Data Sources (custom repos - will use fallback)
     "flashcards_mechanisms": "https://raw.githubusercontent.com/chemistry-flashcards/data/main/mechanisms.json",
     "flashcards_concepts": "https://raw.githubusercontent.com/chemistry-flashcards/data/main/concepts.json",
     "flashcards_practice": "https://raw.githubusercontent.com/chemistry-flashcards/data/main/practice.json",
@@ -151,7 +155,28 @@ CHEMISTRY_SOURCES = {
     "topic_hierarchies": "https://raw.githubusercontent.com/chemistry-concepts/maps/main/hierarchies.json",
 }
 
-# ========== FALLBACK DATA (If GitHub fails) ==========
+# ========== MERGED JEE LOGIC (FROM BOTH FILES) ==========
+
+JEE_LOGIC = {
+    "mechanism_trees": {
+        "substitution": {
+            "primary": "SN2 - Rate = k[Nu][RX], Inversion, 180°",
+            "secondary": "Check NGP! π/n within 2-3 atoms = 10^3-10^14 boost",
+            "tertiary": "SN1 - Rate = k[RX], Racemization, NGP = 10^6-10^14"
+        }
+    },
+    "NGP_rules": {
+        "pi": {"boost": "10^6-10^14×", "groups": ["C=C", "benzene", "C≡C"]},
+        "n": {"boost": "10^3-10^11×", "groups": ["-OR", "-NR2", "-SR"]}
+    },
+    "jee_traps": {
+        "trap1": "Check 2-3 atoms for π/n",
+        "trap2": "Know rate magnitude (10^X)",
+        "trap3": "Acetal = R2C(OR')2"
+    }
+}
+
+# ========== FALLBACK DATA (FROM FILE 6) ==========
 
 FALLBACK_FLASHCARDS = {
     "SN1": {
@@ -269,29 +294,6 @@ FALLBACK_JEE_FREQUENCY = {
 }
 
 # ============================================================================
-# JEE LOGIC (Keep existing)
-# ============================================================================
-
-JEE_LOGIC = {
-    "mechanism_trees": {
-        "substitution": {
-            "primary": "SN2 - Rate = k[Nu][RX], Inversion, 180°",
-            "secondary": "Check NGP! π/n within 2-3 atoms = 10^3-10^14 boost",
-            "tertiary": "SN1 - Rate = k[RX], Racemization, NGP = 10^6-10^14"
-        }
-    },
-    "NGP_rules": {
-        "pi": {"boost": "10^6-10^14×", "groups": ["C=C", "benzene", "C≡C"]},
-        "n": {"boost": "10^3-10^11×", "groups": ["-OR", "-NR2", "-SR"]}
-    },
-    "jee_traps": {
-        "trap1": "Check 2-3 atoms for π/n",
-        "trap2": "Know rate magnitude (10^X)",
-        "trap3": "Acetal = R2C(OR')2"
-    }
-}
-
-# ============================================================================
 # CACHE FUNCTIONS
 # ============================================================================
 
@@ -319,7 +321,7 @@ async def download_knowledge():
     if chemistry_knowledge_base:
         return chemistry_knowledge_base
 
-    logger.info("🌐 Downloading CRAZY knowledge base...")
+    logger.info("🌐 Downloading COMPLETE knowledge base...")
     downloaded = {}
 
     try:
@@ -362,7 +364,7 @@ async def download_knowledge():
     return chemistry_knowledge_base
 
 # ============================================================================
-# PROMPT BUILDING (Keep existing)
+# PROMPT BUILDING
 # ============================================================================
 
 def build_prompt():
@@ -417,7 +419,7 @@ FORMAT: _X=subscript, ^X=superscript, ->=arrow
 BEGIN:"""
 
 # ============================================================================
-# IMAGE PROCESSING (Keep existing)
+# IMAGE PROCESSING
 # ============================================================================
 
 async def enhance_image(img_bytes):
@@ -446,7 +448,7 @@ async def enhance_image(img_bytes):
         return img_bytes
 
 # ============================================================================
-# GEMINI API (Keep existing)
+# GEMINI API
 # ============================================================================
 
 async def call_gemini(img_bytes, question=""):
@@ -509,7 +511,7 @@ async def call_gemini(img_bytes, question=""):
                 raise
 
 # ============================================================================
-# PDF GENERATION (Keep existing - use DARK_MODE_CSS from phase1_features)
+# PDF GENERATION (use DARK_MODE_CSS from phase1_features)
 # ============================================================================
 
 LIGHT_CSS = """
@@ -526,7 +528,6 @@ body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6; color:
 .footer { margin-top: 40px; padding-top: 15px; border-top: 2px solid #e0e0e0; text-align: center; font-size: 9pt; color: #666; }
 p { margin: 8px 0; }
 strong { font-weight: bold; color: #2c3e50; }
-"""
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
@@ -538,7 +539,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </div>
 {{ content }}
 <div class="footer">
-<p>Ultimate Chemistry Bot | Phase 2 Enhanced | Powered by Crazy GitHub Sources</p>
+<p>Ultimate Chemistry Bot | Phase 2 Enhanced | Powered by GitHub Knowledge Base</p>
 </div>
 </body>
 </html>"""
@@ -697,6 +698,56 @@ async def skip_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Nothing to skip!")
 
+async def donate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        if os.path.exists(DONATE_QR_PATH):
+            with open(DONATE_QR_PATH, 'rb') as qr_file:
+                await update.message.reply_photo(
+                    photo=qr_file,
+                    caption=(
+                        "💖 *Support the Bot!*\n\n"
+                        f"Scan QR to donate via UPI\n\n"
+                        f"Your support helps:\n"
+                        f"• Keep bot free ✅\n"
+                        f"• Run 24/7 ⚡\n"
+                        f"• Add features 🚀\n\n"
+                        f"_Every contribution matters! 🙏_\n"
+                        f"- {ADMIN_USERNAME}"
+                    ),
+                    parse_mode='Markdown'
+                )
+        elif DONATE_QR_BASE64:
+            qr_bytes = base64.b64decode(DONATE_QR_BASE64)
+            await update.message.reply_photo(
+                photo=BytesIO(qr_bytes),
+                caption=(
+                    "💖 *Support the Bot!*\n\n"
+                    f"Scan QR to donate via UPI\n\n"
+                    f"Your support helps:\n"
+                    f"• Keep bot free ✅\n"
+                    f"• Run 24/7 ⚡\n"
+                    f"• Add features 🚀\n\n"
+                    f"_Every contribution matters! 🙏_\n"
+                    f"- {ADMIN_USERNAME}"
+                ),
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text(
+                "💖 *Support the Bot!*\n\n"
+                "Thank you for wanting to support!\n"
+                f"Contact: {ADMIN_USERNAME}\n\n"
+                "_QR code coming soon!_",
+                parse_mode='Markdown'
+            )
+    except Exception as e:
+        logger.error(f"Donate error: {e}")
+        await update.message.reply_text(
+            "💖 *Support the Bot!*\n\n"
+            f"Contact: {ADMIN_USERNAME}",
+            parse_mode='Markdown'
+        )
+
 # ============================================================================
 # PHOTO HANDLER
 # ============================================================================
@@ -732,7 +783,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         start = time.time()
 
         if not chemistry_knowledge_base:
-            await status.edit_text("🔬 *ANALYZING*\n\n📥 Loading crazy knowledge base...")
+            await status.edit_text("🔬 *ANALYZING*\n\n📥 Loading knowledge base...")
             await download_knowledge()
 
         await status.edit_text("🔬 *ANALYZING*\n\n🧠 Running triple-strategy...\n⏱️ 2-5 min")
@@ -749,7 +800,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_document(
             document=pdf,
             filename=filename,
-            caption=f"✅ Complete! ⏱️ {elapsed}s\n🎯 Phase 2 Enhanced Analysis",
+            caption=f"✅ Complete! ⏱️ {elapsed}s\n🎯 Phase 2 Enhanced",
             parse_mode='Markdown'
         )
 
@@ -946,12 +997,12 @@ async def jeefreq_analyze_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def startup():
     logger.info("="*70)
-    logger.info("🔬 ULTIMATE CHEMISTRY BOT - PHASE 2 ENHANCED STARTUP")
+    logger.info("🔬 ULTIMATE CHEMISTRY BOT - COMPLETE FINAL STARTUP")
     logger.info("="*70)
     logger.info("📂 Checking cache...")
 
     if not load_cache():
-        logger.info("🌐 Downloading CRAZY GitHub sources...")
+        logger.info("🌐 Downloading complete knowledge...")
         await download_knowledge()
     else:
         logger.info("✅ Using cached knowledge")
@@ -960,7 +1011,7 @@ async def startup():
     logger.info(f"✅ Sections: {len(chemistry_knowledge_base)}")
     logger.info(f"✅ API Keys: {len(GEMINI_API_KEYS)}")
     logger.info(f"✅ Admin: {ADMIN_USERNAME}")
-    logger.info(f"✅ Phase: 2 Enhanced (Crazy Sources!)")
+    logger.info(f"✅ Phase: 1 + 2 Complete!")
     logger.info("="*70)
 
 # ============================================================================
@@ -969,8 +1020,8 @@ async def startup():
 
 def main():
     print("="*70)
-    print("🔬 ULTIMATE CHEMISTRY BOT - PHASE 2 ENHANCED")
-    print("   With CRAZY GitHub Knowledge Sources")
+    print("🔬 ULTIMATE CHEMISTRY BOT - FINAL COMPLETE VERSION")
+    print("   Phase 1 + Phase 2 | All Features Integrated")
     print("="*70)
 
     app = Application.builder().token(BOT_TOKEN).build()
@@ -981,6 +1032,7 @@ def main():
     app.add_handler(CommandHandler("settings", settings_cmd))
     app.add_handler(CommandHandler("stats", stats_cmd))
     app.add_handler(CommandHandler("skip", skip_cmd))
+    app.add_handler(CommandHandler("donate", donate_cmd))
     
     # Admin commands
     app.add_handler(CommandHandler("admin_ban", admin_ban_command))
@@ -1010,7 +1062,7 @@ def main():
     loop = asyncio.get_event_loop()
     loop.run_until_complete(startup())
 
-    print("✅ Bot ready with CRAZY knowledge sources!")
+    print("✅ Bot ready with ALL features!")
     print("="*70)
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
