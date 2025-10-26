@@ -1,10 +1,10 @@
 """
-PHASE 2 VISUALIZER MODULE
-3D Molecules (Three.js), Reaction Animations, Concept Maps
+PHASE 2 VISUALIZER MODULE (UPDATED)
+3D Molecules with COLOR LEGEND, Concept Maps
 
 Author: @aryansmilezzz
 Admin ID: 6298922725
-Phase: 2
+Phase: 2 - Enhanced
 """
 import asyncio
 import re
@@ -16,23 +16,23 @@ import logging
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# 3D MOLECULE GENERATOR (Three.js - No RDKit!)
+# 3D MOLECULE GENERATOR (Three.js with LEGEND!)
 # ============================================================================
 
 def generate_3d_molecule_html(formula):
     """
-    Generate interactive 3D molecule using Three.js
+    Generate interactive 3D molecule using Three.js WITH COLOR LEGEND
     Input: Chemical formula (e.g., "CH3CH2OH", "C6H6")
-    Output: HTML file with interactive 3D visualization
+    Output: HTML file with interactive 3D visualization + legend
     """
     
     # Parse formula to get atom counts
     atoms = parse_chemical_formula(formula)
     
-    # Generate 3D coordinates (simple heuristic placement)
+    # Generate 3D coordinates
     coordinates = generate_molecule_coordinates(atoms, formula)
     
-    # Create Three.js HTML
+    # Create Three.js HTML with LEGEND
     html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -64,6 +64,39 @@ def generate_3d_molecule_html(formula):
             margin: 5px 0;
             font-size: 14px;
         }}
+        
+        /* COLOR LEGEND - TOP RIGHT */
+        #legend {{
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 100;
+            min-width: 150px;
+        }}
+        #legend h3 {{
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            border-bottom: 2px solid #fff;
+            padding-bottom: 5px;
+        }}
+        .legend-item {{
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 13px;
+        }}
+        .legend-color {{
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid white;
+        }}
+        
         #controls {{
             position: absolute;
             bottom: 20px;
@@ -81,6 +114,43 @@ def generate_3d_molecule_html(formula):
         <h2>🧬 {formula}</h2>
         <p>Interactive 3D Molecule</p>
         <p>Atoms: {len(atoms)}</p>
+    </div>
+    
+    <!-- COLOR LEGEND -->
+    <div id="legend">
+        <h3>🎨 Atom Colors</h3>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #909090;"></div>
+            <span>Carbon (C)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FFFFFF;"></div>
+            <span>Hydrogen (H)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF0000;"></div>
+            <span>Oxygen (O)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #0000FF;"></div>
+            <span>Nitrogen (N)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FFFF00;"></div>
+            <span>Sulfur (S)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #00FF00;"></div>
+            <span>Chlorine (Cl)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #A52A2A;"></div>
+            <span>Bromine (Br)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #9400D3;"></div>
+            <span>Iodine (I)</span>
+        </div>
     </div>
     
     <div id="controls">
@@ -104,7 +174,7 @@ def generate_3d_molecule_html(formula):
         directionalLight.position.set(5, 5, 5);
         scene.add(directionalLight);
         
-        // Atom colors (CPK coloring)
+        // Atom colors (CPK coloring) - BRIGHTER!
         const atomColors = {{
             'C': 0x909090,  // Carbon - gray
             'H': 0xFFFFFF,  // Hydrogen - white
@@ -128,7 +198,9 @@ def generate_3d_molecule_html(formula):
             const geometry = new THREE.SphereGeometry(atomSizes[atom.element] || 0.5, 32, 32);
             const material = new THREE.MeshPhongMaterial({{
                 color: atomColors[atom.element] || 0xCCCCCC,
-                shininess: 100
+                shininess: 100,
+                emissive: atomColors[atom.element] || 0xCCCCCC,
+                emissiveIntensity: 0.2
             }});
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(atom.x, atom.y, atom.z);
@@ -244,14 +316,8 @@ def generate_3d_molecule_html(formula):
     return html_content
 
 def parse_chemical_formula(formula):
-    """
-    Parse chemical formula to extract atoms
-    Example: "CH3CH2OH" -> [C, C, H, H, H, H, H, O, H]
-    """
-    # Clean formula
+    """Parse chemical formula to extract atoms"""
     formula = formula.replace('_', '').replace('^', '').replace(' ', '')
-    
-    # Extract atoms with regex
     pattern = r'([A-Z][a-z]?)(\d*)'
     matches = re.findall(pattern, formula)
     
@@ -263,36 +329,27 @@ def parse_chemical_formula(formula):
     return atoms
 
 def generate_molecule_coordinates(atoms, formula):
-    """
-    Generate 3D coordinates for atoms using simple heuristics
-    This is a basic implementation - not chemically perfect but visual!
-    """
+    """Generate 3D coordinates for atoms"""
     coordinates = []
     
-    # Simple linear chain for organic molecules
     if 'C' in atoms:
         carbon_count = atoms.count('C')
         hydrogen_count = atoms.count('H')
         oxygen_count = atoms.count('O')
         
-        # Place carbons in a chain
         carbon_positions = []
         for i in range(carbon_count):
-            # Zigzag pattern
             x = i * 1.5
             y = 0.5 if i % 2 == 0 else -0.5
             z = 0
             carbon_positions.append({'element': 'C', 'x': x, 'y': y, 'z': z})
             coordinates.append({'element': 'C', 'x': x, 'y': y, 'z': z})
         
-        # Place hydrogens around carbons
         h_index = 0
         for i, carbon in enumerate(carbon_positions):
-            # Each carbon typically has 2-4 hydrogens
             h_per_carbon = min(4, hydrogen_count - h_index)
             
             for j in range(h_per_carbon):
-                angle = (j / h_per_carbon) * 2 * 3.14159
                 h_x = carbon['x'] + 1.0 * (j - h_per_carbon/2) * 0.3
                 h_y = carbon['y'] + 0.8 if j % 2 == 0 else carbon['y'] - 0.8
                 h_z = 0.5 if j < h_per_carbon/2 else -0.5
@@ -305,15 +362,12 @@ def generate_molecule_coordinates(atoms, formula):
             if h_index >= hydrogen_count:
                 break
         
-        # Place oxygen/other atoms
         for i in range(oxygen_count):
             o_x = carbon_positions[-1]['x'] + 1.5
             o_y = carbon_positions[-1]['y']
             o_z = 0
             coordinates.append({'element': 'O', 'x': o_x, 'y': o_y, 'z': o_z})
-    
     else:
-        # Simple placement for other molecules
         for i, atom in enumerate(atoms):
             coordinates.append({
                 'element': atom,
@@ -325,30 +379,20 @@ def generate_molecule_coordinates(atoms, formula):
     return coordinates
 
 # ============================================================================
-# CONCEPT MAP GENERATOR
+# CONCEPT MAP GENERATOR (Keep existing)
 # ============================================================================
 
 def generate_concept_map_html(topic, related_concepts=None):
-    """
-    Generate visual concept map using D3.js
-    Shows relationships between chemistry concepts
-    """
+    """Generate visual concept map using D3.js"""
     
     if related_concepts is None:
         related_concepts = get_default_concepts(topic)
     
-    # Convert to D3 graph format
     nodes = []
     links = []
     
-    # Central node
-    nodes.append({
-        "id": topic,
-        "group": 1,
-        "size": 30
-    })
+    nodes.append({"id": topic, "group": 1, "size": 30})
     
-    # Related nodes
     for i, concept in enumerate(related_concepts):
         nodes.append({
             "id": concept['name'],
@@ -425,17 +469,14 @@ def generate_concept_map_html(topic, related_concepts=None):
             links: {links}
         }};
         
-        // Color scale
         const color = d3.scaleOrdinal(d3.schemeCategory10);
         
-        // Force simulation
         const simulation = d3.forceSimulation(graph.nodes)
             .force("link", d3.forceLink(graph.links).id(d => d.id).distance(100))
             .force("charge", d3.forceManyBody().strength(-300))
             .force("center", d3.forceCenter(width / 2, height / 2))
             .force("collision", d3.forceCollide().radius(50));
         
-        // Links
         const link = svg.append("g")
             .attr("class", "links")
             .selectAll("line")
@@ -443,7 +484,6 @@ def generate_concept_map_html(topic, related_concepts=None):
             .enter().append("line")
             .attr("stroke-width", d => Math.sqrt(d.value) * 2);
         
-        // Nodes
         const node = svg.append("g")
             .attr("class", "nodes")
             .selectAll("g")
@@ -463,7 +503,6 @@ def generate_concept_map_html(topic, related_concepts=None):
             .attr("x", d => d.size + 5)
             .attr("y", 5);
         
-        // Update positions
         simulation.on("tick", () => {{
             link
                 .attr("x1", d => d.source.x)
@@ -532,44 +571,6 @@ def get_default_concepts(topic):
     ])
 
 # ============================================================================
-# REACTION ANIMATOR (Matplotlib GIF frames)
-# ============================================================================
-
-def generate_reaction_animation_description(reaction_text):
-    """
-    Generate a description of reaction animation steps
-    (Actual matplotlib animation would be too heavy - we describe instead)
-    """
-    
-    steps = [
-        "🎬 Frame 1: Reactants approaching",
-        "🎬 Frame 2: Bond breaking begins",
-        "🎬 Frame 3: Intermediate formation",
-        "🎬 Frame 4: New bond forming",
-        "🎬 Frame 5: Products formed"
-    ]
-    
-    description = f"""
-📹 *REACTION ANIMATION PREVIEW*
-
-Reaction: {reaction_text}
-
-*Animation Steps:*
-{chr(10).join(steps)}
-
-*Key Features:*
-• Electron flow arrows
-• Bond breaking/forming
-• Orbital interactions
-• Energy diagram overlay
-
-_Full animation requires video rendering_
-_This preview shows the mechanism steps_
-"""
-    
-    return description
-
-# ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
@@ -578,14 +579,13 @@ async def visualize_molecule_command(update, context, formula):
     try:
         html_content = generate_3d_molecule_html(formula)
         
-        # Save to BytesIO
         html_file = BytesIO(html_content.encode('utf-8'))
         html_file.name = f"molecule_{formula}.html"
         
         await update.message.reply_document(
             document=html_file,
             filename=f"3D_{formula}.html",
-            caption=f"🧬 *3D Molecule: {formula}*\n\nOpen in browser for interactive view!\n_Drag to rotate, scroll to zoom_",
+            caption=f"🧬 *3D Molecule: {formula}*\n\n✨ NEW: Color legend included!\n\nOpen in browser for interactive view!\n_Drag to rotate, scroll to zoom_",
             parse_mode='Markdown'
         )
         
