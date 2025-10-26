@@ -915,4 +915,3 @@ if __name__ == "__main__":
         print("💾 Knowledge cached!")
     except Exception as e:
         logger.error(f"\n🚨 FATAL: {e}", exc_info=True)
-```
