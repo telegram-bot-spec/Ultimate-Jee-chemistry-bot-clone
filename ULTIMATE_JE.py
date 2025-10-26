@@ -542,7 +542,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <p>Ultimate Chemistry Bot | Phase 2 Enhanced | Powered by GitHub Knowledge Base</p>
 </div>
 </body>
-</html>"""
+</html>
 
 def format_html(text):
     text = text.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
