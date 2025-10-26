@@ -1,10 +1,10 @@
 """
-PHASE 2 EXAM MODULE
-Mock Tests, MCQ System, Timer, Difficulty Predictor
+PHASE 2 EXAM MODULE - ENHANCED
+Mock Tests with START BUTTON, MCQ System, Timer
 
 Author: @aryansmilezzz
 Admin ID: 6298922725
-Phase: 2
+Phase: 2 - Enhanced
 """
 
 import json
@@ -53,7 +53,10 @@ TIME_LIMITS = {
 
 QUESTION_COUNTS = [10, 20, 30, 50]
 
-# Sample question bank (you can expand this!)
+# ============================================================================
+# EXPANDED QUESTION BANK
+# ============================================================================
+
 QUESTION_BANK = {
     "easy": [
         {
@@ -77,6 +80,39 @@ QUESTION_BANK = {
             },
             "answer": "B",
             "explanation": "SN2 = backside attack at 180°, causing Walden inversion. One-step mechanism means complete stereochemical inversion."
+        },
+        {
+            "question": "Best leaving group among these?",
+            "options": {
+                "A": "F⁻",
+                "B": "Cl⁻",
+                "C": "Br⁻",
+                "D": "I⁻"
+            },
+            "answer": "D",
+            "explanation": "I⁻ > Br⁻ > Cl⁻ > F⁻. Weaker base = better leaving group. Iodide is weakest base, best leaving group."
+        },
+        {
+            "question": "E2 geometry requirement?",
+            "options": {
+                "A": "Syn-periplanar",
+                "B": "Anti-periplanar",
+                "C": "Gauche",
+                "D": "Eclipsed"
+            },
+            "answer": "B",
+            "explanation": "E2 requires anti-periplanar geometry (180°) between H and leaving group for proper orbital overlap."
+        },
+        {
+            "question": "Carbocation stability order?",
+            "options": {
+                "A": "1° > 2° > 3°",
+                "B": "3° > 2° > 1°",
+                "C": "2° > 3° > 1°",
+                "D": "All equal"
+            },
+            "answer": "B",
+            "explanation": "3° > 2° > 1° > methyl. More substitution = more hyperconjugation = more stability."
         }
     ],
     "medium": [
@@ -90,6 +126,50 @@ QUESTION_BANK = {
             },
             "answer": "B",
             "explanation": "π-participation (C=C, benzene, C≡C) within 2-3 atoms gives MASSIVE rate boost: 10⁶ to 10¹⁴ times faster!"
+        },
+        {
+            "question": "Which has NGP? CH₃CH(Br)CH=CH₂ vs CH₃CH₂CH₂Br",
+            "options": {
+                "A": "First only",
+                "B": "Second only",
+                "C": "Both",
+                "D": "Neither"
+            },
+            "answer": "A",
+            "explanation": "First has C=C within 2 atoms of Br → π-NGP! Second has no participating group nearby."
+        },
+        {
+            "question": "SN1 vs E1: What favors elimination?",
+            "options": {
+                "A": "Low temperature",
+                "B": "Weak base",
+                "C": "High temperature + strong base",
+                "D": "Polar protic solvent"
+            },
+            "answer": "C",
+            "explanation": "Heat + strong base favors E1 over SN1. Temperature increases eliminates, base promotes H⁻ removal."
+        },
+        {
+            "question": "Zaitsev vs Hofmann product?",
+            "options": {
+                "A": "Zaitsev = less substituted",
+                "B": "Hofmann = more substituted",
+                "C": "Zaitsev = more substituted",
+                "D": "No difference"
+            },
+            "answer": "C",
+            "explanation": "Zaitsev (strong base) = more substituted alkene. Hofmann (bulky base) = less substituted alkene."
+        },
+        {
+            "question": "Rate law for SN2?",
+            "options": {
+                "A": "Rate = k[RX]",
+                "B": "Rate = k[Nu][RX]",
+                "C": "Rate = k[RX]²",
+                "D": "Rate = k[Nu]"
+            },
+            "answer": "B",
+            "explanation": "SN2 is bimolecular - rate depends on BOTH nucleophile and substrate concentrations."
         }
     ],
     "hard": [
@@ -103,63 +183,146 @@ QUESTION_BANK = {
             },
             "answer": "C",
             "explanation": "NGP with π-participation gives 10⁶-10¹⁴× boost - WAY more than any other factor! This is THE JEE trap."
+        },
+        {
+            "question": "Norbornyl cation rearrangement involves?",
+            "options": {
+                "A": "Hydride shift",
+                "B": "Methyl shift",
+                "C": "σ-bond participation (NGP)",
+                "D": "No rearrangement"
+            },
+            "answer": "C",
+            "explanation": "Classic NGP example - σ-bond participates to form bridged carbocation (non-classical ion)."
+        },
+        {
+            "question": "Compare rates (SN1): PhCH(Br)CH₃ vs CH₃CH(Br)CH=CH₂",
+            "options": {
+                "A": "First much faster",
+                "B": "Second much faster",
+                "C": "About equal",
+                "D": "Cannot determine"
+            },
+            "answer": "B",
+            "explanation": "Second has π-NGP from C=C (10⁶-10¹⁴×)! First only has benzene resonance (~10³×). NGP distance matters!"
+        },
+        {
+            "question": "n-participation gives rate boost of:",
+            "options": {
+                "A": "10⁶ to 10¹⁴ times",
+                "B": "10³ to 10¹¹ times",
+                "C": "10 to 10² times",
+                "D": "10¹⁵ to 10²⁰ times"
+            },
+            "answer": "B",
+            "explanation": "n-participation (lone pairs from O, N, S) gives 10³-10¹¹× boost. Less than π-NGP but still huge!"
+        },
+        {
+            "question": "Distance requirement for effective NGP?",
+            "options": {
+                "A": "Within 1 atom",
+                "B": "Within 2-3 atoms",
+                "C": "Within 5-6 atoms",
+                "D": "Distance doesn't matter"
+            },
+            "answer": "B",
+            "explanation": "NGP needs proper orbital overlap - only effective within 2-3 atoms from leaving group. Beyond that = no boost!"
         }
     ]
 }
 
 # ============================================================================
-# DIFFICULTY PREDICTOR
+# MOCK TEST SESSION
 # ============================================================================
 
-def predict_difficulty(problem_text):
-    """
-    Predict problem difficulty based on keywords and complexity
-    Returns: ("easy"/"medium"/"hard", confidence%, explanation)
-    """
-    text_lower = problem_text.lower()
+class MockTestSession:
+    """Manages a mock test session"""
     
-    # Difficulty indicators
-    hard_keywords = [
-        "ngp", "neighboring group", "participation", "rate boost", "10^",
-        "rearrangement", "complex mechanism", "multi-step"
-    ]
+    def __init__(self, user_id, num_questions, time_limit, difficulty):
+        self.user_id = user_id
+        self.num_questions = num_questions
+        self.time_limit = time_limit
+        self.difficulty = difficulty
+        self.start_time = None
+        self.end_time = None
+        self.current_question = 0
+        self.answers = {}
+        self.score = 0
+        self.questions = []
+        self.configured = True
+        self.started = False
+        
+    def generate_questions(self):
+        """Generate questions based on difficulty"""
+        if self.difficulty == "mixed":
+            easy_q = random.sample(QUESTION_BANK.get("easy", []), 
+                                  min(self.num_questions // 3, len(QUESTION_BANK.get("easy", []))))
+            medium_q = random.sample(QUESTION_BANK.get("medium", []), 
+                                    min(self.num_questions // 3, len(QUESTION_BANK.get("medium", []))))
+            hard_q = random.sample(QUESTION_BANK.get("hard", []), 
+                                  min(self.num_questions // 3, len(QUESTION_BANK.get("hard", []))))
+            self.questions = easy_q + medium_q + hard_q
+        else:
+            bank = QUESTION_BANK.get(self.difficulty, [])
+            self.questions = random.sample(bank, min(self.num_questions, len(bank)))
+        
+        random.shuffle(self.questions)
+        
+    def start(self):
+        """Start the test"""
+        self.start_time = time.time()
+        self.started = True
+        self.generate_questions()
+        
+    def get_time_remaining(self):
+        """Get remaining time in seconds"""
+        if not self.start_time:
+            return self.time_limit
+        elapsed = time.time() - self.start_time
+        remaining = max(0, self.time_limit - elapsed)
+        return int(remaining)
     
-    medium_keywords = [
-        "sn1", "sn2", "e1", "e2", "carbocation", "stereochemistry",
-        "zaitsev", "hofmann", "anti-periplanar"
-    ]
+    def is_time_up(self):
+        """Check if time is up"""
+        return self.get_time_remaining() <= 0
     
-    easy_keywords = [
-        "primary", "secondary", "tertiary", "stability", "basic"
-    ]
+    def format_time_remaining(self):
+        """Format time as HH:MM:SS"""
+        seconds = self.get_time_remaining()
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
     
-    # Count matches
-    hard_count = sum(1 for kw in hard_keywords if kw in text_lower)
-    medium_count = sum(1 for kw in medium_keywords if kw in text_lower)
-    easy_count = sum(1 for kw in easy_keywords if kw in text_lower)
+    def submit_answer(self, question_num, answer):
+        """Submit answer for a question"""
+        self.answers[question_num] = answer
+        
+    def calculate_score(self):
+        """Calculate final score"""
+        correct = 0
+        for i, q in enumerate(self.questions):
+            if self.answers.get(i) == q["answer"]:
+                correct += 1
+        self.score = correct
+        self.end_time = time.time()
+        return correct, len(self.questions)
     
-    # Determine difficulty
-    if hard_count >= 2:
-        difficulty = "hard"
-        confidence = min(70 + (hard_count * 5), 95)
-        explanation = f"Contains {hard_count} advanced concepts (NGP, rate effects, rearrangements)"
-    elif medium_count >= 2 or hard_count == 1:
-        difficulty = "medium"
-        confidence = min(65 + (medium_count * 5), 90)
-        explanation = f"Involves mechanism comparison and stereochemistry"
-    else:
-        difficulty = "easy"
-        confidence = min(60 + (easy_count * 5), 85)
-        explanation = "Basic concept or straightforward mechanism"
-    
-    return difficulty, confidence, explanation
+    def get_accuracy(self):
+        """Get accuracy percentage"""
+        if not self.questions:
+            return 0
+        return int((self.score / len(self.questions)) * 100)
+
+# Store active mock test sessions
+active_mock_tests = {}
 
 # ============================================================================
-# MOCK TEST CONFIGURATION UI
+# UI KEYBOARDS
 # ============================================================================
 
 def create_config_keyboard():
-    """Create configuration keyboard for mock test"""
+    """Create configuration keyboard"""
     keyboard = [
         [InlineKeyboardButton("📝 Configure Test", callback_data="mock_config_start")]
     ]
@@ -204,89 +367,15 @@ def create_difficulty_keyboard():
         ])
     return InlineKeyboardMarkup(keyboard)
 
-# ============================================================================
-# MOCK TEST SESSION
-# ============================================================================
-
-class MockTestSession:
-    """Manages a mock test session"""
-    
-    def __init__(self, user_id, num_questions, time_limit, difficulty):
-        self.user_id = user_id
-        self.num_questions = num_questions
-        self.time_limit = time_limit  # seconds
-        self.difficulty = difficulty
-        self.start_time = None
-        self.end_time = None
-        self.current_question = 0
-        self.answers = {}  # {question_num: selected_option}
-        self.score = 0
-        self.questions = []
-        
-    def generate_questions(self):
-        """Generate questions based on difficulty"""
-        if self.difficulty == "mixed":
-            # Mix from all difficulties
-            easy_q = random.sample(QUESTION_BANK.get("easy", []), 
-                                  min(self.num_questions // 3, len(QUESTION_BANK.get("easy", []))))
-            medium_q = random.sample(QUESTION_BANK.get("medium", []), 
-                                    min(self.num_questions // 3, len(QUESTION_BANK.get("medium", []))))
-            hard_q = random.sample(QUESTION_BANK.get("hard", []), 
-                                  min(self.num_questions // 3, len(QUESTION_BANK.get("hard", []))))
-            self.questions = easy_q + medium_q + hard_q
-        else:
-            bank = QUESTION_BANK.get(self.difficulty, [])
-            self.questions = random.sample(bank, min(self.num_questions, len(bank)))
-        
-        random.shuffle(self.questions)
-        
-    def start(self):
-        """Start the test"""
-        self.start_time = time.time()
-        self.generate_questions()
-        
-    def get_time_remaining(self):
-        """Get remaining time in seconds"""
-        if not self.start_time:
-            return self.time_limit
-        elapsed = time.time() - self.start_time
-        remaining = max(0, self.time_limit - elapsed)
-        return int(remaining)
-    
-    def is_time_up(self):
-        """Check if time is up"""
-        return self.get_time_remaining() <= 0
-    
-    def format_time_remaining(self):
-        """Format time as HH:MM:SS"""
-        seconds = self.get_time_remaining()
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        secs = seconds % 60
-        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-    
-    def submit_answer(self, question_num, answer):
-        """Submit answer for a question"""
-        self.answers[question_num] = answer
-        
-    def calculate_score(self):
-        """Calculate final score"""
-        correct = 0
-        for i, q in enumerate(self.questions):
-            if self.answers.get(i) == q["answer"]:
-                correct += 1
-        self.score = correct
-        self.end_time = time.time()
-        return correct, len(self.questions)
-    
-    def get_accuracy(self):
-        """Get accuracy percentage"""
-        if not self.questions:
-            return 0
-        return int((self.score / len(self.questions)) * 100)
-
-# Store active mock test sessions
-active_mock_tests = {}  # {user_id: MockTestSession}
+def create_start_test_keyboard():
+    """Create START TEST confirmation keyboard"""
+    keyboard = [
+        [
+            InlineKeyboardButton("🚀 START TEST NOW", callback_data="mock_start_now"),
+            InlineKeyboardButton("📚 Review Config", callback_data="mock_review")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 # ============================================================================
 # MOCK TEST HANDLERS
@@ -340,7 +429,7 @@ async def handle_time_limit(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     )
 
 async def handle_difficulty_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, difficulty):
-    """Handle difficulty selection and start test"""
+    """Handle difficulty selection and show START button"""
     query = update.callback_query
     await query.answer()
     
@@ -349,28 +438,72 @@ async def handle_difficulty_selection(update: Update, context: ContextTypes.DEFA
     time_key = context.user_data.get('mock_time', '1hr')
     time_seconds = TIME_LIMITS[time_key]
     
-    # Create session
+    # Create session (but DON'T start yet!)
     session = MockTestSession(user_id, questions, time_seconds, difficulty)
-    session.start()
     active_mock_tests[user_id] = session
     
     diff_info = DIFFICULTY_LEVELS[difficulty]
     
+    # Show configuration summary with START button
     await query.edit_message_text(
-        f"🎯 *MOCK TEST READY*\n\n"
-        f"📝 Questions: {questions}\n"
-        f"⏱️ Time: {time_key}\n"
-        f"{diff_info['emoji']} Difficulty: {diff_info['name']}\n\n"
-        f"*Topics:*\n"
+        f"🎯 *MOCK TEST CONFIGURED*\n\n"
+        f"📝 Questions: *{questions}*\n"
+        f"⏱️ Time Limit: *{time_key}*\n"
+        f"{diff_info['emoji']} Difficulty: *{diff_info['name']}*\n\n"
+        f"*Topics Covered:*\n"
         f"{chr(10).join('• ' + t for t in diff_info['topics'])}\n\n"
-        f"✅ *Test will start now!*\n"
-        f"_You can answer at your own pace_",
+        f"⚠️ *Ready to begin?*\n"
+        f"_Once started, timer will begin immediately_",
+        reply_markup=create_start_test_keyboard(),
+        parse_mode='Markdown'
+    )
+
+async def handle_start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle START TEST button press"""
+    query = update.callback_query
+    await query.answer("🚀 Starting test...")
+    
+    user_id = query.from_user.id
+    session = active_mock_tests.get(user_id)
+    
+    if not session:
+        await query.edit_message_text(
+            "❌ *Session expired!*\n\n"
+            "Please configure a new test with /mocktest",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # START the test
+    session.start()
+    
+    await query.edit_message_text(
+        f"✅ *TEST STARTED!*\n\n"
+        f"⏱️ Timer: {session.format_time_remaining()}\n"
+        f"📝 Questions: {len(session.questions)}\n\n"
+        f"_Loading first question..._",
         parse_mode='Markdown'
     )
     
-    # Start first question
-    await asyncio.sleep(2)
+    # Show first question
     await show_question(query.message, context, user_id, 0)
+
+async def handle_review_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle review config button"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    
+    # Delete session
+    if user_id in active_mock_tests:
+        del active_mock_tests[user_id]
+    
+    await query.edit_message_text(
+        "📚 *Configuration Cancelled*\n\n"
+        "Use /mocktest to configure a new test!",
+        parse_mode='Markdown'
+    )
 
 async def show_question(message, context: ContextTypes.DEFAULT_TYPE, user_id, question_num):
     """Show a question"""
@@ -382,16 +515,17 @@ async def show_question(message, context: ContextTypes.DEFAULT_TYPE, user_id, qu
     
     # Create answer keyboard
     keyboard = []
-    for opt_key, opt_text in question["options"].items():
+    for opt_key in sorted(question["options"].keys()):
+        opt_text = question["options"][opt_key]
         keyboard.append([
             InlineKeyboardButton(
-                f"{opt_key}) {opt_text[:40]}...",
+                f"{opt_key}) {opt_text[:50]}{'...' if len(opt_text) > 50 else ''}",
                 callback_data=f"mock_ans_{question_num}_{opt_key}"
             )
         ])
     
     keyboard.append([
-        InlineKeyboardButton("⏭️ Skip", callback_data=f"mock_skip_{question_num}")
+        InlineKeyboardButton("⏭️ Skip", callback_data=f"mock_ans_{question_num}_SKIP")
     ])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -419,11 +553,12 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE, ques
     session = active_mock_tests.get(user_id)
     
     if not session:
-        await query.edit_message_text("❌ Session expired. Start a new test with /mock_test")
+        await query.edit_message_text("❌ Session expired. Start a new test with /mocktest")
         return
     
-    # Record answer
-    session.submit_answer(question_num, answer)
+    # Record answer (unless skipped)
+    if answer != "SKIP":
+        session.submit_answer(question_num, answer)
     
     # Check if time up
     if session.is_time_up():
@@ -434,7 +569,7 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE, ques
     next_q = question_num + 1
     if next_q < len(session.questions):
         await query.edit_message_text(
-            f"✅ Answer recorded: {answer}\n\n_Loading next question..._",
+            f"✅ Answer recorded: {answer if answer != 'SKIP' else 'Skipped'}\n\n_Loading next question..._",
             parse_mode='Markdown'
         )
         await show_question(query.message, context, user_id, next_q)
@@ -450,10 +585,10 @@ async def end_mock_test(message, context: ContextTypes.DEFAULT_TYPE, user_id):
     
     correct, total = session.calculate_score()
     accuracy = session.get_accuracy()
-    time_taken = int(session.end_time - session.start_time)
+    time_taken = int(session.end_time - session.start_time) if session.end_time else 0
     time_taken_str = f"{time_taken // 60}m {time_taken % 60}s"
     
-    # Determine performance
+    # Performance rating
     if accuracy >= 90:
         performance = "🏆 Excellent!"
         emoji = "🎉"
@@ -474,25 +609,26 @@ async def end_mock_test(message, context: ContextTypes.DEFAULT_TYPE, user_id):
         f"📈 Accuracy: {accuracy}%\n"
         f"⏱️ Time: {time_taken_str}\n"
         f"🎯 Performance: {performance}\n\n"
-        f"*Detailed Analysis:*\n"
     )
     
     # Show wrong answers
     wrong_count = 0
+    result_text += "*Review:*\n"
     for i, q in enumerate(session.questions):
         user_ans = session.answers.get(i, "Not answered")
         if user_ans != q["answer"]:
             wrong_count += 1
-            if wrong_count <= 5:  # Show first 5 wrong answers
+            if wrong_count <= 3:
                 result_text += (
-                    f"\n❌ Q{i+1}: {q['question'][:60]}...\n"
+                    f"\n❌ Q{i+1}: {q['question'][:50]}...\n"
                     f"Your: {user_ans} | Correct: {q['answer']}\n"
+                    f"💡 {q['explanation'][:100]}...\n"
                 )
     
-    if wrong_count > 5:
-        result_text += f"\n_...and {wrong_count - 5} more mistakes_\n"
+    if wrong_count > 3:
+        result_text += f"\n_...and {wrong_count - 3} more to review_\n"
     
-    result_text += "\n💡 Review explanations and try again!"
+    result_text += "\n✨ Use /mocktest to try again!"
     
     await message.reply_text(result_text, parse_mode='Markdown')
     
@@ -500,11 +636,11 @@ async def end_mock_test(message, context: ContextTypes.DEFAULT_TYPE, user_id):
     del active_mock_tests[user_id]
 
 # ============================================================================
-# COMMAND HANDLERS
+# COMMAND HANDLER
 # ============================================================================
 
 async def mock_test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /mock_test command"""
+    """Handle /mocktest command"""
     await update.message.reply_text(
         "📝 *MOCK TEST SIMULATOR*\n\n"
         "Practice with real JEE-style MCQs!\n\n"
@@ -512,22 +648,9 @@ async def mock_test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Customizable (questions, time, difficulty)\n"
         "• Timer with live countdown\n"
         "• Instant scoring & analysis\n"
-        "• Detailed explanations\n\n"
+        "• Detailed explanations\n"
+        "• 🆕 START button confirmation\n\n"
         "_Configure your test:_",
         reply_markup=create_config_keyboard(),
-        parse_mode='Markdown'
-    )
-
-async def difficulty_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /difficulty command - predict problem difficulty"""
-    await update.message.reply_text(
-        "🎯 *DIFFICULTY PREDICTOR*\n\n"
-        "Send me a chemistry problem (text or image)\n"
-        "and I'll predict its difficulty!\n\n"
-        "*Levels:*\n"
-        "🟢 Easy - Basic concepts\n"
-        "🟡 Medium - Mechanism comparisons\n"
-        "🔴 Hard - JEE Advanced level\n\n"
-        "_Send a problem now!_",
         parse_mode='Markdown'
     )
