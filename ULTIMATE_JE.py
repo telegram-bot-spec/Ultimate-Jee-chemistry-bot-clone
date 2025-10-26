@@ -723,7 +723,7 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if data == 'hint_next':
             await handle_hint_next(update, context)
         elif data == 'hint_stop':
-            await handle_hint_stop(await handle_hint_stop(update, context)
+            await handle_hint_stop(update, context)
         elif data == 'hint_reset':
             await handle_hint_reset(update, context)
     
