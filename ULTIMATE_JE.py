@@ -528,6 +528,7 @@ body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6; color:
 .footer { margin-top: 40px; padding-top: 15px; border-top: 2px solid #e0e0e0; text-align: center; font-size: 9pt; color: #666; }
 p { margin: 8px 0; }
 strong { font-weight: bold; color: #2c3e50; }
+""" # Added closing triple quotes
 
 HTML_TEMPLATE = """  <!DOCTYPE html>
 <html>
