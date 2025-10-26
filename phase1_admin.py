@@ -1,611 +1,570 @@
 """
-PHASE 1 FEATURES MODULE
-User-facing features: Text queries, Feedback system, Dark mode PDFs
+PHASE 1 ADMIN MODULE
+Admin tools: Notifications, Ban system, Stats, Maintenance mode, Broadcast
 
 Author: @aryansmilezzz
-Phase: 1 (Text + Feedback + Dark Mode)
+Admin ID: 6298922725
 """
 
-import re
 import time
 from datetime import datetime, timedelta
 from collections import defaultdict
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes, CallbackQueryHandler
+from telegram import Update, InputFile
+from telegram.ext import ContextTypes
+from io import BytesIO
 import logging
 
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# RATE LIMITING
+# ADMIN CONFIGURATION
 # ============================================================================
 
-user_text_queries = defaultdict(list)  # {user_id: [timestamp1, timestamp2, ...]}
-TEXT_QUERY_LIMIT = 10  # queries per minute
-TEXT_QUERY_WINDOW = 60  # seconds
+ADMIN_ID = 6298922725
+ADMIN_USERNAME = "@aryansmilezzz"
 
-def check_rate_limit(user_id):
-    """Check if user has exceeded text query rate limit"""
+# ============================================================================
+# TRACKING & STORAGE
+# ============================================================================
+
+# User tracking
+all_users = set()  # {user_id1, user_id2, ...}
+user_first_seen = {}  # {user_id: timestamp}
+user_problem_count = defaultdict(int)  # {user_id: count}
+user_last_activity = {}  # {user_id: timestamp}
+
+# Spam tracking
+user_message_history = defaultdict(list)  # {user_id: [(timestamp, message), ...]}
+spam_warnings = defaultdict(int)  # {user_id: warning_count}
+
+# Ban list
+banned_users = set()  # {user_id1, user_id2, ...}
+
+# Stats
+total_problems_solved = 0
+total_text_queries = 0
+total_feedback_received = 0
+feedback_ratings = []  # [rating1, rating2, ...]
+
+# Maintenance mode
+maintenance_mode = False
+maintenance_message = "🔧 Bot is under maintenance. Please try again later!"
+
+# Bot start time
+bot_start_time = datetime.now()
+
+# ============================================================================
+# USER TRACKING
+# ============================================================================
+
+def track_new_user(user_id, username):
+    """Track new user"""
+    if user_id not in all_users:
+        all_users.add(user_id)
+        user_first_seen[user_id] = datetime.now()
+        logger.info(f"New user: {username} ({user_id})")
+        return True
+    return False
+
+def track_user_activity(user_id):
+    """Update user last activity"""
+    user_last_activity[user_id] = datetime.now()
+
+def track_problem_solved(user_id):
+    """Track problem solved"""
+    global total_problems_solved
+    user_problem_count[user_id] += 1
+    total_problems_solved += 1
+    track_user_activity(user_id)
+
+def track_text_query(user_id):
+    """Track text query"""
+    global total_text_queries
+    total_text_queries += 1
+    track_user_activity(user_id)
+
+def track_feedback(rating):
+    """Track feedback rating"""
+    global total_feedback_received
+    total_feedback_received += 1
+    feedback_ratings.append(int(rating))
+
+# ============================================================================
+# SPAM DETECTION
+# ============================================================================
+
+def detect_spam(user_id, message):
+    """
+    Detect if user is spamming
+    Returns: (is_spam, spam_type, count)
+    """
     now = time.time()
     
-    # Clean old timestamps
-    user_text_queries[user_id] = [
-        ts for ts in user_text_queries[user_id] 
-        if now - ts < TEXT_QUERY_WINDOW
+    # Clean old messages (keep last 60 seconds)
+    user_message_history[user_id] = [
+        (ts, msg) for ts, msg in user_message_history[user_id]
+        if now - ts < 60
     ]
     
-    # Check limit
-    if len(user_text_queries[user_id]) >= TEXT_QUERY_LIMIT:
-        return False, TEXT_QUERY_LIMIT - len(user_text_queries[user_id])
+    # Add current message
+    user_message_history[user_id].append((now, message.lower().strip()))
     
-    # Add new timestamp
-    user_text_queries[user_id].append(now)
-    return True, TEXT_QUERY_LIMIT - len(user_text_queries[user_id])
+    recent_messages = [msg for ts, msg in user_message_history[user_id]]
+    
+    # Check for repeated messages
+    if len(recent_messages) >= 5:
+        last_5 = recent_messages[-5:]
+        if len(set(last_5)) == 1:  # All same message
+            return True, "repeated_message", 5
+    
+    # Check for rapid fire (>10 messages in 30 seconds)
+    last_30s = [ts for ts, msg in user_message_history[user_id] if now - ts < 30]
+    if len(last_30s) > 10:
+        return True, "rapid_fire", len(last_30s)
+    
+    # Check for spam patterns
+    spam_words = ["hi", "hello", "test", "hey", "lol", "haha"]
+    recent_spam = [msg for msg in recent_messages[-10:] if msg in spam_words]
+    if len(recent_spam) >= 5:
+        return True, "spam_words", len(recent_spam)
+    
+    return False, None, 0
 
 # ============================================================================
-# CHEMISTRY KNOWLEDGE BASE (Quick Answers)
+# BAN SYSTEM
 # ============================================================================
 
-CHEMISTRY_QUICK_ANSWERS = {
-    # SN reactions
-    "sn1": "SN1 is unimolecular substitution where leaving group departs first forming carbocation (Rate = k[RX]). Racemization occurs, and NGP can boost rate 10³-10¹⁴×!",
-    "sn2": "SN2 is bimolecular substitution with backside attack at 180° (Rate = k[Nu][RX]). Inversion of configuration occurs. Works best with primary substrates!",
-    
-    # Elimination
-    "e1": "E1 is unimolecular elimination forming carbocation first, then base removes β-H. Follows Zaitsev's rule (more substituted alkene preferred).",
-    "e2": "E2 is bimolecular elimination requiring anti-periplanar geometry. Strong base removes β-H while leaving group departs simultaneously!",
-    
-    # NGP
-    "ngp": "Neighboring Group Participation (NGP) is when nearby π-bonds or lone pairs help stabilize transition state. Rate boost: π = 10⁶-10¹⁴×, n = 10³-10¹¹×!",
-    
-    # Carbocations
-    "carbocation": "Carbocations are positively charged carbon species. Stability: 3° > 2° > 1° > methyl. Stabilized by hyperconjugation, resonance, and NGP!",
-    
-    # Mechanisms
-    "mechanism": "Reaction mechanisms show step-by-step bond breaking/forming with electron flow arrows. Key: identify rate-determining step and intermediates!",
-    
-    # Stereochemistry
-    "stereochemistry": "Stereochemistry studies 3D arrangement of atoms. SN2 gives inversion, SN1 gives racemization, E2 needs anti-periplanar geometry!",
-    
-    # Common groups
-    "leaving group": "Good leaving groups are weak bases (I⁻ > Br⁻ > Cl⁻ > F⁻). Better leaving group = faster reaction!",
-    "nucleophile": "Nucleophiles are electron-rich species that attack electron-deficient carbons. Stronger nucleophile = faster SN2!",
-    
-    # Acidity/Basicity
-    "pka": "pKa measures acidity. Lower pKa = stronger acid. Important for predicting reaction mechanisms and equilibria!",
-    
-    # General
-    "jee": "JEE Advanced tests deep understanding of mechanisms, stereochemistry, and rate effects. Watch for NGP traps and rate magnitude questions!",
-}
+def ban_user(user_id):
+    """Ban a user"""
+    banned_users.add(user_id)
+    logger.warning(f"User banned: {user_id}")
 
-def get_quick_answer(query):
-    """Get quick answer from knowledge base"""
-    query_lower = query.lower()
-    
-    # Check for exact matches
-    for key, answer in CHEMISTRY_QUICK_ANSWERS.items():
-        if key in query_lower:
-            return answer
-    
-    # Check for common patterns
-    if any(word in query_lower for word in ["what is", "define", "explain"]):
-        # Extract the term
-        for key in CHEMISTRY_QUICK_ANSWERS.keys():
-            if key in query_lower:
-                return CHEMISTRY_QUICK_ANSWERS[key]
-    
-    return None
-
-def is_spam_message(text):
-    """Detect spam/casual messages"""
-    spam_patterns = [
-        r'^hi+$', r'^hello+$', r'^hey+$', r'^test+$',
-        r'^ok+$', r'^yes+$', r'^no+$', r'^lol+$',
-        r'^haha+$', r'^hmm+$', r'^uh+$', r'^um+$'
-    ]
-    
-    text_clean = text.lower().strip()
-    return any(re.match(pattern, text_clean) for pattern in spam_patterns)
-
-# ============================================================================
-# TEXT QUERY HANDLER
-# ============================================================================
-
-async def handle_text_query(text, update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Handle text questions with friendly responses
-    Mode: Hybrid (quick answer + offer detailed)
-    """
-    user_id = update.effective_user.id
-    username = update.effective_user.username or "Unknown"
-    
-    # Check spam
-    if is_spam_message(text):
-        return "spam_detected"
-    
-    # Check rate limit
-    allowed, remaining = check_rate_limit(user_id)
-    if not allowed:
-        await update.message.reply_text(
-            f"⏳ *Rate limit reached!*\n\n"
-            f"You can ask {TEXT_QUERY_LIMIT} text questions per minute.\n"
-            f"Please wait a moment before asking again!\n\n"
-            f"_For unlimited solving, send images! 📸_",
-            parse_mode='Markdown'
-        )
-        return "rate_limited"
-    
-    # Get quick answer
-    quick_answer = get_quick_answer(text)
-    
-    if quick_answer:
-        # Send short answer with option for detailed
-        response = (
-            f"💡 *Quick Answer:*\n\n"
-            f"{quick_answer}\n\n"
-            f"_Want a detailed explanation? Reply:_\n"
-            f"*YES* - Get full explanation\n"
-            f"*NO* - That's enough\n\n"
-            f"📊 Remaining queries: {remaining}/{TEXT_QUERY_LIMIT} per minute"
-        )
-        
-        # Store context for follow-up
-        context.user_data['last_query'] = text
-        context.user_data['awaiting_detailed'] = True
-        
-        await update.message.reply_text(response, parse_mode='Markdown')
-        return "answered"
-    else:
-        # Unknown query - suggest image
-        await update.message.reply_text(
-            f"🤔 Hmm, I'm not sure about that!\n\n"
-            f"*Try:*\n"
-            f"• Send a photo of your problem 📸\n"
-            f"• Rephrase your question\n"
-            f"• Use keywords like: SN1, SN2, NGP, E1, E2\n\n"
-            f"_I'm best at solving problems from images!_",
-            parse_mode='Markdown'
-        )
-        return "unknown"
-
-async def handle_detailed_request(text, update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle YES/NO response for detailed explanation"""
-    if not context.user_data.get('awaiting_detailed'):
-        return False
-    
-    text_lower = text.lower().strip()
-    
-    if text_lower in ['yes', 'y', 'yeah', 'yep', 'sure']:
-        last_query = context.user_data.get('last_query', '')
-        
-        await update.message.reply_text(
-            f"📚 *Detailed Explanation Coming!*\n\n"
-            f"For comprehensive analysis with mechanisms, "
-            f"orbital diagrams, and JEE insights:\n\n"
-            f"*Please send an image* of a related problem or "
-            f"the specific concept you want explained.\n\n"
-            f"I'll give you a beautiful PDF with triple-strategy analysis! 📄",
-            parse_mode='Markdown'
-        )
-        
-        context.user_data['awaiting_detailed'] = False
+def unban_user(user_id):
+    """Unban a user"""
+    if user_id in banned_users:
+        banned_users.remove(user_id)
+        logger.info(f"User unbanned: {user_id}")
         return True
-    
-    elif text_lower in ['no', 'n', 'nope', 'nah']:
-        await update.message.reply_text(
-            "👍 Got it! Ask me anything else or send a problem image! 📸"
-        )
-        context.user_data['awaiting_detailed'] = False
-        return True
-    
+    return False
+
+def is_banned(user_id):
+    """Check if user is banned"""
+    return user_id in banned_users
+
+def add_spam_warning(user_id):
+    """Add spam warning to user"""
+    spam_warnings[user_id] += 1
+    if spam_warnings[user_id] >= 3:
+        ban_user(user_id)
+        return True  # Auto-banned
     return False
 
 # ============================================================================
-# FEEDBACK SYSTEM
+# ADMIN NOTIFICATIONS
 # ============================================================================
 
-def create_feedback_keyboard():
-    """Create inline keyboard for rating 1-10"""
-    keyboard = [
-        [
-            InlineKeyboardButton("⭐ 1", callback_data="rate_1"),
-            InlineKeyboardButton("⭐ 2", callback_data="rate_2"),
-            InlineKeyboardButton("⭐ 3", callback_data="rate_3"),
-            InlineKeyboardButton("⭐ 4", callback_data="rate_4"),
-            InlineKeyboardButton("⭐ 5", callback_data="rate_5"),
-        ],
-        [
-            InlineKeyboardButton("⭐ 6", callback_data="rate_6"),
-            InlineKeyboardButton("⭐ 7", callback_data="rate_7"),
-            InlineKeyboardButton("⭐ 8", callback_data="rate_8"),
-            InlineKeyboardButton("⭐ 9", callback_data="rate_9"),
-            InlineKeyboardButton("⭐ 10", callback_data="rate_10"),
-        ],
-        [
-            InlineKeyboardButton("💬 Add Comment", callback_data="add_comment"),
-            InlineKeyboardButton("❌ Skip", callback_data="skip_feedback"),
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
+async def notify_admin(context: ContextTypes.DEFAULT_TYPE, message, image=None):
+    """Send notification to admin"""
+    try:
+        if image:
+            await context.bot.send_photo(
+                chat_id=ADMIN_ID,
+                photo=image,
+                caption=message,
+                parse_mode='Markdown'
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=message,
+                parse_mode='Markdown'
+            )
+    except Exception as e:
+        logger.error(f"Failed to notify admin: {e}")
 
-async def request_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Request feedback after sending PDF"""
-    keyboard = create_feedback_keyboard()
-    
-    await update.message.reply_text(
-        "⭐ *How was this solution?*\n\n"
-        "Rate 1-10 so I can improve! 😊\n"
-        "_Your feedback helps make me better!_",
-        reply_markup=keyboard,
-        parse_mode='Markdown'
+async def notify_new_user(user_id, username, context):
+    """Notify admin of new user"""
+    message = (
+        f"📊 *NEW USER*\n\n"
+        f"👤 User: @{username}\n"
+        f"🆔 ID: `{user_id}`\n"
+        f"📅 Time: {datetime.now().strftime('%I:%M %p')}\n"
+        f"👥 Total users: {len(all_users)}"
     )
+    await notify_admin(context, message)
 
-async def handle_rating_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle rating button press"""
-    query = update.callback_query
-    await query.answer()
-    
-    rating = query.data.replace("rate_", "")
-    user = query.from_user
-    username = user.username or "Unknown"
-    user_id = user.id
-    
-    # Store rating
-    context.user_data['rating'] = rating
-    
-    # Ask for optional comment
-    await query.edit_message_text(
-        f"✅ *You rated: {rating}/10*\n\n"
-        f"Want to add a comment? (Optional)\n"
-        f"Just type your feedback, or press /skip\n\n"
-        f"_Thank you! 🙏_",
-        parse_mode='Markdown'
+async def notify_problem_solved(user_id, username, processing_time, context, image=None):
+    """Notify admin of problem solved"""
+    message = (
+        f"🔬 *PROBLEM SOLVED*\n\n"
+        f"👤 User: @{username}\n"
+        f"🆔 ID: `{user_id}`\n"
+        f"⏱️ Time: {processing_time}s\n"
+        f"📊 Total by user: {user_problem_count[user_id]}\n"
+        f"📈 Total today: {total_problems_solved}"
     )
-    
-    # Mark awaiting comment
-    context.user_data['awaiting_feedback_comment'] = True
-    
-    # Return rating for admin notification
-    return int(rating), username, user_id
+    await notify_admin(context, message, image)
 
-async def handle_comment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle 'Add Comment' button"""
-    query = update.callback_query
-    await query.answer()
+async def notify_text_query(user_id, username, query, answer, context):
+    """Notify admin of text query"""
+    message = (
+        f"💬 *TEXT QUERY*\n\n"
+        f"👤 User: @{username}\n"
+        f"🆔 ID: `{user_id}`\n"
+        f"❓ Query: _{query[:100]}_\n"
+        f"✅ Answer: _{answer[:100]}_\n"
+        f"📊 Total text queries: {total_text_queries}"
+    )
+    await notify_admin(context, message)
+
+async def notify_feedback(user_id, username, rating, comment, context):
+    """Notify admin of feedback received"""
+    avg_rating = sum(feedback_ratings) / len(feedback_ratings) if feedback_ratings else 0
     
-    await query.edit_message_text(
-        "💬 *Please type your feedback:*\n\n"
-        "Share your thoughts about the solution!\n"
-        "Or press /skip to finish.\n\n"
-        "_Your input helps me improve!_ 😊",
-        parse_mode='Markdown'
+    message = (
+        f"⭐ *FEEDBACK RECEIVED*\n\n"
+        f"👤 User: @{username}\n"
+        f"🆔 ID: `{user_id}`\n"
+        f"⭐ Rating: *{rating}/10*\n"
     )
     
-    context.user_data['awaiting_feedback_comment'] = True
-
-async def handle_skip_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle 'Skip' button"""
-    query = update.callback_query
-    await query.answer()
+    if comment:
+        message += f"💬 Comment: _{comment[:200]}_\n"
     
-    await query.edit_message_text(
-        "👍 *Thanks anyway!*\n\n"
-        "Send me another problem anytime! 📸",
-        parse_mode='Markdown'
-    )
-
-async def collect_feedback_comment(text, update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Collect text comment after rating"""
-    if not context.user_data.get('awaiting_feedback_comment'):
-        return None
-    
-    rating = context.user_data.get('rating', 'N/A')
-    user = update.effective_user
-    username = user.username or "Unknown"
-    user_id = user.id
-    
-    context.user_data['awaiting_feedback_comment'] = False
-    context.user_data['rating'] = None
-    
-    await update.message.reply_text(
-        "🙏 *Thank you so much!*\n\n"
-        "Your feedback has been recorded.\n"
-        "Keep solving! 📸✨",
-        parse_mode='Markdown'
+    message += (
+        f"\n📊 *Statistics:*\n"
+        f"Total feedback: {total_feedback_received}\n"
+        f"Average rating: {avg_rating:.1f}/10"
     )
     
-    return {
-        'rating': rating,
-        'comment': text,
-        'username': username,
-        'user_id': user_id,
-        'timestamp': datetime.now()
-    }
+    await notify_admin(context, message)
+
+async def notify_spam_detected(user_id, username, spam_type, count, messages, context):
+    """Notify admin of spam detection"""
+    warnings = spam_warnings[user_id]
+    
+    message = (
+        f"⚠️ *SPAM ALERT*\n\n"
+        f"👤 User: @{username}\n"
+        f"🆔 ID: `{user_id}`\n"
+        f"🚨 Type: {spam_type.replace('_', ' ').title()}\n"
+        f"📊 Count: {count} messages\n"
+        f"⚠️ Warnings: {warnings}/3\n\n"
+        f"📝 Recent messages:\n_{', '.join(messages[-5:])}_\n\n"
+        f"*Actions:*\n"
+        f"/admin_ban {user_id} - Ban user\n"
+        f"/admin_warn {user_id} - Just warn\n"
+        f"/admin_ignore {user_id} - Ignore"
+    )
+    
+    await notify_admin(context, message)
+
+async def notify_error(error_msg, context):
+    """Notify admin of errors"""
+    message = (
+        f"❌ *ERROR ALERT*\n\n"
+        f"🕐 Time: {datetime.now().strftime('%I:%M %p')}\n"
+        f"📝 Error: `{error_msg[:500]}`"
+    )
+    await notify_admin(context, message)
 
 # ============================================================================
-# USER SETTINGS
+# ADMIN COMMANDS
 # ============================================================================
 
-user_preferences = {}  # {user_id: {'pdf_mode': 'light/dark'}}
-
-def get_user_preference(user_id, key, default='light'):
-    """Get user preference"""
-    if user_id not in user_preferences:
-        user_preferences[user_id] = {}
-    return user_preferences[user_id].get(key, default)
-
-def set_user_preference(user_id, key, value):
-    """Set user preference"""
-    if user_id not in user_preferences:
-        user_preferences[user_id] = {}
-    user_preferences[user_id][key] = value
-
-async def ask_pdf_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ask user for PDF mode preference on first use"""
-    user_id = update.effective_user.id
+async def admin_ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ban a user - /admin_ban <user_id>"""
+    if update.effective_user.id != ADMIN_ID:
+        return
     
-    # Check if already asked
-    if get_user_preference(user_id, 'asked_mode', False):
-        return get_user_preference(user_id, 'pdf_mode', 'light')
+    if len(context.args) < 1:
+        await update.message.reply_text(
+            "Usage: `/admin_ban <user_id>`",
+            parse_mode='Markdown'
+        )
+        return
     
-    keyboard = [
-        [
-            InlineKeyboardButton("☀️ Light Mode", callback_data="mode_light"),
-            InlineKeyboardButton("🌙 Dark Mode", callback_data="mode_dark"),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    try:
+        user_id = int(context.args[0])
+        ban_user(user_id)
+        await update.message.reply_text(
+            f"✅ *User Banned*\n\nID: `{user_id}`\n"
+            f"They can no longer use the bot.",
+            parse_mode='Markdown'
+        )
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID!")
+
+async def admin_unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Unban a user - /admin_unban <user_id>"""
+    if update.effective_user.id != ADMIN_ID:
+        return
     
-    await update.message.reply_text(
-        "🎨 *Choose PDF Style:*\n\n"
-        "☀️ *Light Mode* - Classic white background\n"
-        "🌙 *Dark Mode* - Easy on eyes for night study\n\n"
-        "_You can change this anytime with /settings_",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
+    if len(context.args) < 1:
+        await update.message.reply_text(
+            "Usage: `/admin_unban <user_id>`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        user_id = int(context.args[0])
+        if unban_user(user_id):
+            await update.message.reply_text(
+                f"✅ *User Unbanned*\n\nID: `{user_id}`\n"
+                f"They can use the bot again.",
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text("❌ User was not banned!")
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID!")
+
+async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show bot statistics - /admin_stats"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    
+    uptime = datetime.now() - bot_start_time
+    avg_rating = sum(feedback_ratings) / len(feedback_ratings) if feedback_ratings else 0
+    
+    # Active users (last 24 hours)
+    now = datetime.now()
+    active_24h = sum(
+        1 for uid, last_time in user_last_activity.items()
+        if now - last_time < timedelta(hours=24)
     )
     
-    return None  # Will be set by callback
-
-async def handle_mode_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle PDF mode selection"""
-    query = update.callback_query
-    await query.answer()
+    # Top users
+    top_users = sorted(user_problem_count.items(), key=lambda x: x[1], reverse=True)[:5]
+    top_users_text = "\n".join([f"  • User {uid}: {count} problems" for uid, count in top_users])
     
-    user_id = query.from_user.id
-    mode = query.data.replace("mode_", "")
-    
-    set_user_preference(user_id, 'pdf_mode', mode)
-    set_user_preference(user_id, 'asked_mode', True)
-    
-    emoji = "☀️" if mode == "light" else "🌙"
-    await query.edit_message_text(
-        f"{emoji} *PDF Mode Set: {mode.title()}*\n\n"
-        f"All PDFs will now use {mode} mode!\n"
-        f"_Change anytime with /settings_",
-        parse_mode='Markdown'
+    message = (
+        f"📊 *BOT STATISTICS*\n\n"
+        f"⏱️ *Uptime:* {uptime.days}d {uptime.seconds//3600}h {(uptime.seconds//60)%60}m\n\n"
+        f"👥 *Users:*\n"
+        f"  • Total: {len(all_users)}\n"
+        f"  • Active (24h): {active_24h}\n"
+        f"  • Banned: {len(banned_users)}\n\n"
+        f"🔬 *Problems Solved:*\n"
+        f"  • Total: {total_problems_solved}\n"
+        f"  • Average per user: {total_problems_solved/len(all_users) if all_users else 0:.1f}\n\n"
+        f"💬 *Text Queries:* {total_text_queries}\n\n"
+        f"⭐ *Feedback:*\n"
+        f"  • Total received: {total_feedback_received}\n"
+        f"  • Average rating: {avg_rating:.1f}/10\n\n"
+        f"🏆 *Top Users:*\n{top_users_text if top_users_text else '  None yet'}\n\n"
+        f"🔧 *Maintenance:* {'ON' if maintenance_mode else 'OFF'}"
     )
     
-    return mode
+    await update.message.reply_text(message, parse_mode='Markdown')
 
-async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /settings command"""
-    user_id = update.effective_user.id
-    current_mode = get_user_preference(user_id, 'pdf_mode', 'light')
+async def admin_maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Toggle maintenance mode - /admin_maintenance on/off"""
+    global maintenance_mode, maintenance_message
     
-    keyboard = [
-        [
-            InlineKeyboardButton(
-                f"{'✅' if current_mode == 'light' else '◻️'} Light Mode", 
-                callback_data="mode_light"
-            ),
-            InlineKeyboardButton(
-                f"{'✅' if current_mode == 'dark' else '◻️'} Dark Mode", 
-                callback_data="mode_dark"
-            ),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    if update.effective_user.id != ADMIN_ID:
+        return
     
-    emoji = "☀️" if current_mode == "light" else "🌙"
+    if len(context.args) < 1:
+        await update.message.reply_text(
+            f"Usage: `/admin_maintenance on/off [message]`\n\n"
+            f"Current: {'ON' if maintenance_mode else 'OFF'}",
+            parse_mode='Markdown'
+        )
+        return
     
-    await update.message.reply_text(
-        f"⚙️ *Settings*\n\n"
-        f"*PDF Mode:* {emoji} {current_mode.title()}\n"
-        f"*Response Style:* Concise (2-3 lines)\n\n"
-        f"_Tap to change PDF mode:_",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
-
-# ============================================================================
-# DARK MODE PDF CSS
-# ============================================================================
-
-DARK_MODE_CSS = """
-@page {
-    size: A4;
-    margin: 2cm;
-}
-
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Helvetica', 'Arial', sans-serif;
-    font-size: 11pt;
-    line-height: 1.6;
-    color: #e8e8e8;
-    background: #1a1a1a;
-}
-
-.page {
-    padding: 20px;
-}
-
-.header {
-    background: linear-gradient(135deg, #4a9eff 0%, #00d9ff 100%);
-    color: white;
-    padding: 30px;
-    border-radius: 12px;
-    margin-bottom: 30px;
-}
-
-.header h1 {
-    font-size: 24pt;
-    font-weight: bold;
-    margin-bottom: 8px;
-}
-
-.header .subtitle {
-    font-size: 11pt;
-    opacity: 0.95;
-}
-
-.header .meta {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(255,255,255,0.3);
-    font-size: 9pt;
-}
-
-.section {
-    margin: 25px 0;
-    page-break-inside: avoid;
-}
-
-.section-title {
-    font-size: 15pt;
-    font-weight: bold;
-    color: #4a9eff;
-    margin-bottom: 12px;
-    padding-bottom: 6px;
-    border-bottom: 3px solid #4a9eff;
-}
-
-.subsection-title {
-    font-size: 12pt;
-    font-weight: bold;
-    color: #00d9ff;
-    margin: 15px 0 10px 0;
-    border-left: 4px solid #00d9ff;
-    padding-left: 10px;
-}
-
-.strategy-box {
-    background: #2a2a2a;
-    border-left: 5px solid #4a9eff;
-    padding: 20px;
-    margin: 20px 0;
-    border-radius: 6px;
-    page-break-inside: avoid;
-}
-
-.strategy-header {
-    font-size: 13pt;
-    font-weight: bold;
-    color: #4a9eff;
-    margin-bottom: 12px;
-}
-
-.answer-box {
-    background: #1e3a5f;
-    border: 3px solid #4a9eff;
-    padding: 20px;
-    border-radius: 10px;
-    margin: 25px 0;
-    page-break-inside: avoid;
-}
-
-.answer-label {
-    font-size: 10pt;
-    font-weight: bold;
-    color: #00d9ff;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 6px;
-}
-
-.answer-content {
-    font-size: 12pt;
-    font-weight: bold;
-    color: #4a9eff;
-}
-
-.confidence {
-    display: inline-block;
-    background: #00d9ff;
-    color: #1a1a1a;
-    padding: 4px 12px;
-    border-radius: 15px;
-    font-size: 9pt;
-    font-weight: bold;
-    margin-left: 8px;
-}
-
-.formula {
-    font-family: 'Courier New', monospace;
-    background: #2a2a2a;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 10pt;
-    color: #00d9ff;
-}
-
-.step {
-    background: #252525;
-    border: 2px solid #3a3a3a;
-    padding: 15px;
-    margin: 12px 0;
-    border-radius: 6px;
-    page-break-inside: avoid;
-}
-
-.success-box {
-    background: #1e3a1e;
-    border-left: 4px solid #00d9ff;
-    padding: 12px 15px;
-    margin: 12px 0;
-    border-radius: 4px;
-}
-
-.footer {
-    margin-top: 40px;
-    padding-top: 15px;
-    border-top: 2px solid #3a3a3a;
-    text-align: center;
-    font-size: 9pt;
-    color: #888;
-    font-style: italic;
-}
-
-p {
-    margin: 8px 0;
-}
-
-ul, ol {
-    margin: 12px 0;
-    padding-left: 25px;
-}
-
-li {
-    margin: 6px 0;
-}
-
-strong {
-    font-weight: bold;
-    color: #00d9ff;
-}
-"""
-
-def get_pdf_css(mode='light'):
-    """Get appropriate CSS based on mode"""
-    if mode == 'dark':
-        return DARK_MODE_CSS
+    mode = context.args[0].lower()
+    
+    if mode == 'on':
+        maintenance_mode = True
+        if len(context.args) > 1:
+            maintenance_message = ' '.join(context.args[1:])
+        await update.message.reply_text(
+            f"🔧 *Maintenance Mode: ON*\n\n"
+            f"Message: _{maintenance_message}_",
+            parse_mode='Markdown'
+        )
+    elif mode == 'off':
+        maintenance_mode = False
+        await update.message.reply_text(
+            "✅ *Maintenance Mode: OFF*\n\nBot is now accepting requests!",
+            parse_mode='Markdown'
+        )
     else:
-        # Return existing light mode CSS
-        from ULTIMATE_JE import CSS_TEMPLATE
-        return CSS_TEMPLATE
+        await update.message.reply_text("❌ Use 'on' or 'off'")
+
+async def admin_broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Broadcast message to all users - /admin_broadcast <message>"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    
+    if len(context.args) < 1:
+        await update.message.reply_text(
+            "Usage: `/admin_broadcast <message>`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    message = ' '.join(context.args)
+    
+    await update.message.reply_text(
+        f"📢 *Broadcasting to {len(all_users)} users...*",
+        parse_mode='Markdown'
+    )
+    
+    success = 0
+    failed = 0
+    
+    for user_id in all_users:
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"📢 *Announcement*\n\n{message}",
+                parse_mode='Markdown'
+            )
+            success += 1
+        except Exception as e:
+            failed += 1
+            logger.error(f"Broadcast failed for {user_id}: {e}")
+    
+    await update.message.reply_text(
+        f"✅ *Broadcast Complete*\n\n"
+        f"Sent: {success}\nFailed: {failed}",
+        parse_mode='Markdown'
+    )
+
+async def admin_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """List all users - /admin_users"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    
+    user_list = []
+    for user_id in list(all_users)[:20]:  # Show first 20
+        problems = user_problem_count[user_id]
+        first_seen = user_first_seen.get(user_id, datetime.now())
+        days_ago = (datetime.now() - first_seen).days
+        user_list.append(f"• {user_id}: {problems} problems ({days_ago}d ago)")
+    
+    message = (
+        f"👥 *USER LIST* (First 20)\n\n"
+        f"{chr(10).join(user_list)}\n\n"
+        f"Total: {len(all_users)} users"
+    )
+    
+    await update.message.reply_text(message, parse_mode='Markdown')
+
+async def admin_warn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Warn user about spam - /admin_warn <user_id>"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    
+    if len(context.args) < 1:
+        await update.message.reply_text(
+            "Usage: `/admin_warn <user_id>`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        user_id = int(context.args[0])
+        auto_banned = add_spam_warning(user_id)
+        
+        if auto_banned:
+            await update.message.reply_text(
+                f"⛔ *User Auto-Banned*\n\n"
+                f"ID: `{user_id}`\n"
+                f"Reason: 3 spam warnings",
+                parse_mode='Markdown'
+            )
+        else:
+            warnings = spam_warnings[user_id]
+            await update.message.reply_text(
+                f"⚠️ *Warning Added*\n\n"
+                f"ID: `{user_id}`\n"
+                f"Warnings: {warnings}/3",
+                parse_mode='Markdown'
+            )
+            
+            # Send warning to user
+            try:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=(
+                        f"⚠️ *Warning*\n\n"
+                        f"Please avoid spam messages.\n"
+                        f"Warnings: {warnings}/3\n\n"
+                        f"_3 warnings = automatic ban_"
+                    ),
+                    parse_mode='Markdown'
+                )
+            except:
+                pass
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID!")
+
+async def admin_ignore_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ignore spam alert - /admin_ignore <user_id>"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    
+    if len(context.args) < 1:
+        await update.message.reply_text(
+            "Usage: `/admin_ignore <user_id>`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        user_id = int(context.args[0])
+        # Reset spam history
+        user_message_history[user_id] = []
+        await update.message.reply_text(
+            f"✅ *Ignored*\n\nSpam alert for user `{user_id}` cleared.",
+            parse_mode='Markdown'
+        )
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID!")
+
+# ============================================================================
+# MAINTENANCE CHECK
+# ============================================================================
+
+async def check_maintenance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Check if bot is in maintenance mode"""
+    if maintenance_mode and update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text(
+            maintenance_message,
+            parse_mode='Markdown'
+        )
+        return True
+    return False
+
+# ============================================================================
+# ADMIN HELP
+# ============================================================================
+
+async def admin_help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show admin commands - /admin_help"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    
+    message = (
+        f"👑 *ADMIN COMMANDS*\n\n"
+        f"*User Management:*\n"
+        f"• `/admin_ban <id>` - Ban user\n"
+        f"• `/admin_unban <id>` - Unban user\n"
+        f"• `/admin_warn <id>` - Warn user\n"
+        f"• `/admin_ignore <id>` - Ignore spam alert\n"
+        f"• `/admin_users` - List all users\n\n"
+        f"*Statistics:*\n"
+        f"• `/admin_stats` - Full bot stats\n\n"
+        f"*Bot Control:*\n"
+        f"• `/admin_maintenance on/off` - Toggle maintenance\n"
+        f"• `/admin_broadcast <msg>` - Send to all users\n\n"
+        f"*Help:*\n"
+        f"• `/admin_help` - This message\n\n"
+        f"_All user actions auto-notify you!_"
+    )
+    
+    await update.message.reply_text(message, parse_mode='Markdown')
