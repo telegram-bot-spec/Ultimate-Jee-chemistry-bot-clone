@@ -535,7 +535,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <body>
 <div class="header">
 <h1> Ultimate Chemistry Analysis</h1>
-<div>📅 {{ date }}</div>
+<div> {{ date }}</div>
 </div>
 {{ content }}
 <div class="footer">
