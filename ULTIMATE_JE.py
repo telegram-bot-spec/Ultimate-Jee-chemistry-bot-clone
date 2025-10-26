@@ -529,7 +529,7 @@ body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6; color:
 p { margin: 8px 0; }
 strong { font-weight: bold; color: #2c3e50; }
 
-HTML_TEMPLATE = <!DOCTYPE html>
+HTML_TEMPLATE = """  <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"><title>Chemistry Report</title></head>
 <body>
@@ -542,7 +542,7 @@ HTML_TEMPLATE = <!DOCTYPE html>
 <p>Ultimate Chemistry Bot | Phase 2 Enhanced | Powered by GitHub Knowledge Base</p>
 </div>
 </body>
-</html>
+</html> """
 
 def format_html(text):
     text = text.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
